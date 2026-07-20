@@ -41,12 +41,20 @@ ct.callfunc("onUserLogin", [{ Identity: "u123", Email: "sam@x.com", Name: "Sam" 
 ct.callfunc("profilePush", [{ Name: "Sam", plan: "pro", favTeam: "IND" }])
 ```
 
+## Sample channel
+
+A runnable sample lives in [`sample/`](sample/). It starts the SDK and fires one of each
+call on launch so you can verify things end to end against a test account. See
+[`sample/README.md`](sample/README.md) for how to assemble and sideload it.
+
 ## Development
 
-Requires Node.js. Install tooling with `npm install`. Unit tests use
-[rooibos](https://github.com/rokucommunity/rooibos); build the test channel with
-`npm test` and sideload it to a Roku device in Developer Mode to run the suite.
+Requires Node.js. Install tooling with `npm install`, then:
 
-## Status
+- `npm run build` type-checks the source and components with the BrighterScript compiler.
+- `npm test` runs the unit suite headlessly with the [brs](https://github.com/sjbarag/brs)
+  interpreter - no Roku device needed. The pure logic (device, session, queue, validation,
+  request building, networking decisions, profile, login) is covered here; the SceneGraph
+  node wiring is verified by sideloading the sample against a test account.
 
-Work in progress. See the repository plan for the full implementation roadmap.
+Both run in CI on every push and pull request.

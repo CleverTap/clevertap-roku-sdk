@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Sample scene. On launch it starts the SDK and fires one of each supported call so you
+     can watch the requests go out and check the CleverTap dashboard. -->
+<component name="MainScene" extends="Scene">
+    <children>
+        <Label id="status" text="CleverTap sample running - check the debug console" translation="[80, 80]" />
+    </children>
+    <script type="text/brightscript" uri="MainScene.brs" />
+</component>
