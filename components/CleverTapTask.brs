@@ -1,6 +1,109 @@
-' Network worker node. Scaffolding only for now; the handshake + upload logic lands on the
-' task-network branch. init() runs on the render thread when the node is created; the actual
-' work will run on the task thread inside the function named by m.top.functionName.
+' Runs on its own thread so network calls never block the render thread. The main node
+' fills in m.top.request and sets control = "RUN"; this uploads one batch and writes the
+' outcome to m.top.response, which the main node observes.
+'
+' The pure decisions (which host, how to read the response) live in CleverTapNetwork so
+' they can be tested off-device; this file is just the roUrlTransfer plumbing around them.
+
 sub init()
-    ' Intentionally empty until the task-network branch wires this up.
+    m.top.functionName = "ctRunUpload"
 end sub
+
+' Entry point on the task thread. Resolves the host (doing the one-time /hello lookup only
+' when needed), POSTs the batch, and reports the result.
+sub ctRunUpload()
+    req = m.top.request
+    config = req.config
+
+    resolved = CleverTapResolveDomain(config, req.cachedRedirect)
+    domain = resolved.domain
+    redirectFromHandshake = invalid
+
+    ' No region/proxy/cached host: ask /hello where to send, then remember it.
+    if resolved.needsHandshake then
+        hello = ctHttpRequest("GET", CleverTapConstants().HANDSHAKE_URL, invalid, ctRequestHeaders(config))
+        if hello.code = 200 then
+            headers = CleverTapParseResponseHeaders(hello.headers)
+            redirectFromHandshake = headers.redirectDomain
+            domain = redirectFromHandshake
+        end if
+        ' Handshake did not give us a host: report failure so the caller retries later.
+        if domain = invalid or domain = "" then
+            m.top.response = ctFailure(req.sentCount)
+            return
+        end if
+    end if
+
+    url = CleverTapBuildUploadUrl(domain, config.accountId, ctNowSeconds())
+    post = ctHttpRequest("POST", url, req.payload, ctRequestHeaders(config))
+
+    parsed = CleverTapParseResponseHeaders(post.headers)
+    ' Prefer a redirect learned from the upload; fall back to the handshake's.
+    redirect = parsed.redirectDomain
+    if redirect = invalid then redirect = redirectFromHandshake
+
+    m.top.response = {
+        success: (post.code = 200)
+        statusCode: post.code
+        sentCount: req.sentCount
+        redirectDomain: redirect
+        spikyDomain: parsed.spikyDomain
+        mute: parsed.mute
+        serverGuid: CleverTapExtractServerGuid(post.body)
+    }
+end sub
+
+' One HTTP call. Returns { code, headers, body }; code is -1 on transport failure/timeout.
+function ctHttpRequest(method as string, url as string, body as dynamic, headers as object) as object
+    port = CreateObject("roMessagePort")
+    transfer = CreateObject("roUrlTransfer")
+    transfer.SetMessagePort(port)
+    transfer.SetUrl(url)
+    transfer.SetHeaders(headers)
+    ' HTTPS on Roku needs the system CA bundle.
+    transfer.SetCertificatesFile("common:/certs/ca-bundle.crt")
+    transfer.InitClientCertificates()
+
+    started = false
+    if method = "POST" then
+        transfer.SetRequest("POST")
+        started = transfer.AsyncPostFromString(body)
+    else
+        started = transfer.AsyncGetToString()
+    end if
+    if not started then return { code: -1, headers: {}, body: "" }
+
+    msg = wait(30000, port)
+    if type(msg) = "roUrlEvent" then
+        return { code: msg.GetResponseCode(), headers: msg.GetResponseHeaders(), body: msg.GetString() }
+    end if
+
+    ' Timed out; cancel and report a transport failure.
+    transfer.AsyncCancel()
+    return { code: -1, headers: {}, body: "" }
+end function
+
+function ctRequestHeaders(config as object) as object
+    consts = CleverTapConstants()
+    headers = {}
+    headers[consts.HEADER_ACCOUNT_ID] = config.accountId
+    headers[consts.HEADER_TOKEN] = config.token
+    headers[consts.HEADER_CONTENT_TYPE] = consts.CONTENT_TYPE_JSON
+    return headers
+end function
+
+function ctFailure(sentCount as integer) as object
+    return {
+        success: false
+        statusCode: -1
+        sentCount: sentCount
+        redirectDomain: invalid
+        spikyDomain: invalid
+        mute: false
+        serverGuid: invalid
+    }
+end function
+
+function ctNowSeconds() as integer
+    return CreateObject("roDateTime").AsSeconds()
+end function
