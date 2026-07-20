@@ -9,6 +9,7 @@ sub main()
     CleverTapValidatorTests(t)
     CleverTapRequestTests(t)
     CleverTapNetworkTests(t)
+    CleverTapProfileTests(t)
 
     t.report()
 end sub
