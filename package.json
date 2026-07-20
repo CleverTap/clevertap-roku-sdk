@@ -17,15 +17,16 @@
   ],
   "scripts": {
     "build": "bsc",
-    "test": "bsc --project bsconfig-test.json && echo 'Sideload the built test channel to a Roku device to run rooibos.'"
+    "test": "node scripts/run-tests.js"
   },
   "ropm": {
     "rootDir": "."
   },
   "devDependencies": {
     "brighterscript": "^0.65.0",
-    "rooibos-roku": "^5.9.0",
-    "ropm": "^0.10.0",
-    "roku-deploy": "^3.11.0"
+    "brs": "^0.45.0",
+    "glob": "^10.5.0",
+    "roku-deploy": "^3.11.0",
+    "ropm": "^0.10.0"
   }
 }
