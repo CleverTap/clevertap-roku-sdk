@@ -4,8 +4,22 @@
      state and coordinates work, it never draws anything. -->
 <component name="CleverTap" extends="Node">
     <interface>
-        <!-- Public callfunc entry points (init, recordEvent, ...) are added as the SDK
-             grows. Empty for now. -->
+        <!-- Configure the SDK once. Arg: a config assocarray (accountId, token, region). -->
+        <function name="init" />
+        <!-- Record a custom event. Arg: [name, props]. -->
+        <function name="recordEvent" />
+        <!-- Record a purchase. Arg: [details, items]. -->
+        <function name="recordChargedEvent" />
     </interface>
     <script type="text/brightscript" uri="CleverTap.brs" />
+    <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
+         shared modules this node uses. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapConstants.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapStorage.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapDevice.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapSession.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapQueue.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
 </component>

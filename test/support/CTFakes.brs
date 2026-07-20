@@ -21,6 +21,21 @@ function CTFakeDeviceInfo() as object
     }
 end function
 
+' roAppInfo stand-in whose GetValue returns supplied manifest values, mimicking real
+' roAppInfo which returns "" for keys that aren't in the manifest.
+function CTFakeManifestAppInfo(values as object) as object
+    return {
+        values: values
+        GetVersion: function() as string
+            return "1.2.0"
+        end function
+        GetValue: function(key as string) as string
+            if m.values.DoesExist(key) then return m.values[key]
+            return ""
+        end function
+    }
+end function
+
 function CTFakeAppInfo() as object
     return {
         GetVersion: function() as string
