@@ -1,0 +1,11 @@
+{
+  "rootDir": ".",
+  "files": [
+    "source/**/*.brs",
+    "components/**/*"
+  ],
+  "createPackage": false,
+  "diagnosticFilters": [
+    1013
+  ]
+}
