@@ -6,13 +6,9 @@ account.
 
 ## Assemble and run
 
-The sample needs the SDK's `source/` and `components/` files alongside its own. Either:
-
-- **ropm (recommended):** run `ropm install clevertap` in this folder, which pulls the SDK
-  in under the `clevertap` namespace, then update `MainScene.brs` to create the node with
-  its namespaced name; or
-- **quick local test:** copy the repo's `source/` and `components/` files into this folder's
-  `source/` and `components/` so `CleverTap` and `CleverTapTask` are registered.
+The sample needs the SDK's `source/` and `components/` files alongside its own. Copy the
+repo's `source/` and `components/` files into this folder's `source/` and `components/` so
+the `CleverTap` and `CleverTapTask` nodes are registered.
 
 Then set your credentials (either in `manifest` or in the `init()` call inside
 `MainScene.brs`), zip the folder, and sideload it to a Roku in Developer Mode. Use the remote
