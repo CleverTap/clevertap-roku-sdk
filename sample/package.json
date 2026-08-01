@@ -1,0 +1,12 @@
+{
+  "name": "clevertap-roku-sample",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sample Roku channel that consumes the local CleverTap Roku SDK via ropm.",
+  "dependencies": {
+    "clevertap-roku-sdk": "file:../clevertap-roku-sdk-0.1.0.tgz"
+  },
+  "devDependencies": {
+    "ropm": "^0.10.0"
+  }
+}

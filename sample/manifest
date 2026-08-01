@@ -5,7 +5,7 @@ build_version=0
 
 ui_resolutions=fhd
 
-# Credentials can live here instead of being passed to init(). Fill these in (or pass
+# CleverTap credentials can live here instead of being passed to init(). Fill these in (or pass
 # them to callfunc("init", {...}) in MainScene.brs) before sideloading.
 clevertap_account_id=YOUR_ACCOUNT_ID
 clevertap_token=YOUR_TOKEN

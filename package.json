@@ -1,5 +1,5 @@
 {
-  "name": "clevertap",
+  "name": "clevertap-roku-sdk",
   "version": "0.1.0",
   "description": "CleverTap SDK for Roku (BrightScript / SceneGraph) - analytics: recordEvent, recordChargedEvent, onUserLogin, profilePush.",
   "keywords": [

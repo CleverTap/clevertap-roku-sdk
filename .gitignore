@@ -2,6 +2,9 @@ node_modules/
 out/
 dist/
 *.zip
+*.tgz
+roku_modules/
+sample/package-lock.json
 .DS_Store
 roku-deploy.json
 .env

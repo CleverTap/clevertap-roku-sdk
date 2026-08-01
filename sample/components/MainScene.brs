@@ -1,7 +1,8 @@
 ' Brings up the SDK and a menu of its public calls. Each row fires one call on OK so you can
 ' watch that single request in the debug console and confirm it in the CleverTap dashboard.
 sub init()
-    ct = CreateObject("roSGNode", "CleverTap")
+    ' ropm installs the SDK under its package prefix, so the node is "clevertaprokusdk_CleverTap".
+    ct = CreateObject("roSGNode", "clevertaprokusdk_CleverTap")
     ' Keep it on m.global so any component in a real channel can reach it.
     m.global.addFields({ clevertap: ct })
 
