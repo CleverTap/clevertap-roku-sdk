@@ -32,8 +32,8 @@ creates `clevertaprokusdk_CleverTap` instead of plain `CleverTap`. That is alrea
 
 1. Put your CleverTap credentials in `manifest` (or pass them to the `init()` call in
    `MainScene.brs`).
-2. Zip the `manifest`, `source`, and `components` together, then load that zip onto a Roku
-   that is in Developer Mode.
+2. Zip the `manifest`, `source`, `components`, and `images` together, then load that zip onto a
+   Roku that is in Developer Mode.
 3. Use the remote to highlight a row and press OK to fire that call.
 4. Check that the event, purchase, identified user, or profile shows up in your CleverTap
    dashboard. You can also watch the channel's debug log (over telnet, port 8085) to see each

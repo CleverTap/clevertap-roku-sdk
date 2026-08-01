@@ -46,13 +46,13 @@ Still inside the `sample` folder, run the command for your system. Running it fr
 macOS or Linux:
 
 ```
-zip -r ../clevertap-roku-sample.zip manifest source components
+zip -r ../clevertap-roku-sample.zip manifest source components images
 ```
 
 Windows (PowerShell):
 
 ```
-Compress-Archive -Path manifest,source,components -DestinationPath ..\clevertap-roku-sample.zip
+Compress-Archive -Path manifest,source,components,images -DestinationPath ..\clevertap-roku-sample.zip
 ```
 
 Either way you get `clevertap-roku-sample.zip` one folder up (in the repo root).
