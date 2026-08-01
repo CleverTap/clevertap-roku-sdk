@@ -49,4 +49,10 @@ sub ctOnItemSelected(event as object)
         ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
         m.status.text = "recordChargedEvent fired"
     end if
+
+    ' Show the CleverTap device id (GUID) so you can match this run to the dashboard profile
+    ' without digging through the registry / Local Storage. onUserLogin can switch the id, so
+    ' we read it after the call.
+    id = ct.callfunc("getCleverTapID", invalid)
+    if id <> "" then m.status.text = m.status.text + " | id " + id
 end sub

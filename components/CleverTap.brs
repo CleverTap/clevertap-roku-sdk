@@ -147,6 +147,14 @@ function onUserLogin(args as object) as void
     ctMaybeFlush()
 end function
 
+' Returns the current CleverTap device id (GUID), or "" if the SDK isn't configured yet. This
+' is the same id CleverTap shows on the profile, so it's handy for matching a run to the
+' dashboard. args is unused.
+function getCleverTapID(args = invalid as dynamic) as string
+    if not m.started then return ""
+    return m.deviceId
+end function
+
 function ctLoadIdentityCache() as object
     raw = m.storage.read(m.identityCacheKey)
     if raw = invalid then return {}

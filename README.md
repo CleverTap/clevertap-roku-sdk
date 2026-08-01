@@ -22,6 +22,9 @@ This first version is analytics only. It exposes four calls:
 - `onUserLogin` - identify a user.
 - `profilePush` - set attributes on the current user.
 
+It also exposes `getCleverTapID`, which returns the current device id (the CleverTap ID) so
+you can match a session to its profile in the dashboard.
+
 ## Requirements
 
 - A Roku SceneGraph channel written in BrightScript.
@@ -81,6 +84,9 @@ ct.callfunc("recordEvent", ["Product viewed", { id: 42, name: "Bat" }])
 
 ' Record a purchase with line items
 ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
+
+' Get the current CleverTap device id (the CleverTap ID)
+ctId = ct.callfunc("getCleverTapID", invalid)
 ```
 
 ## Sample channel
