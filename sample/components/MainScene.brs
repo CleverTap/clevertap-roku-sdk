@@ -1,6 +1,5 @@
-' Starts the SDK and fires one of each call so you can verify the SDK end to end: watch the
-' debug console for the outgoing requests and confirm the event, purchase, identified user,
-' and profile show up in the CleverTap dashboard.
+' Brings up the SDK and a menu of its public calls. Each row fires one call on OK so you can
+' watch that single request in the debug console and confirm it in the CleverTap dashboard.
 sub init()
     ct = CreateObject("roSGNode", "CleverTap")
     ' Keep it on m.global so any component in a real channel can reach it.
@@ -10,9 +9,43 @@ sub init()
     ' To configure in code instead, pass them: init({ accountId: "...", token: "...", region: "in1" }).
     ct.callfunc("init", {})
 
-    ' Identify the user first, then record a bit of activity for them.
-    ct.callfunc("onUserLogin", [{ Identity: "sample-user-1", Email: "sam@example.com", Name: "Sam" }])
-    ct.callfunc("profilePush", [{ plan: "pro", favTeam: "IND" }])
-    ct.callfunc("recordEvent", ["Product viewed", { id: 42, name: "Bat" }])
-    ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
+    m.status = m.top.findNode("status")
+
+    m.menu = m.top.findNode("menu")
+    m.menu.content = ctBuildMenu()
+    m.menu.observeField("itemSelected", "ctOnItemSelected")
+    m.menu.setFocus(true)
+end sub
+
+' The menu rows, in the order they read best in a session: identify the user, then push a
+' profile, then record activity.
+function ctBuildMenu() as object
+    root = CreateObject("roSGNode", "ContentNode")
+    labels = ["Login user", "Push profile", "Record event", "Record event with properties", "Record charged event"]
+    for each label in labels
+        root.CreateChild("ContentNode").title = label
+    end for
+    return root
+end function
+
+sub ctOnItemSelected(event as object)
+    ct = m.global.clevertap
+    index = event.getData()
+
+    if index = 0 then
+        ct.callfunc("onUserLogin", [{ Identity: "sample-user-1", Email: "sam@example.com", Name: "Sam" }])
+        m.status.text = "onUserLogin fired for sample-user-1"
+    else if index = 1 then
+        ct.callfunc("profilePush", [{ plan: "pro", favTeam: "IND" }])
+        m.status.text = "profilePush fired"
+    else if index = 2 then
+        ct.callfunc("recordEvent", ["Product viewed"])
+        m.status.text = "recordEvent 'Product viewed' fired"
+    else if index = 3 then
+        ct.callfunc("recordEvent", ["Product viewed", { id: 42, name: "Bat" }])
+        m.status.text = "recordEvent 'Product viewed' with properties fired"
+    else if index = 4 then
+        ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
+        m.status.text = "recordChargedEvent fired"
+    end if
 end sub
