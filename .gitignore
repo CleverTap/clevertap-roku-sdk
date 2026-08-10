@@ -1,0 +1,7 @@
+node_modules/
+out/
+dist/
+*.zip
+.DS_Store
+roku-deploy.json
+.env

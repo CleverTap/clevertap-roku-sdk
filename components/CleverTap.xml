@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Public-facing SDK node. The app creates one of these, keeps it on m.global, and
+     calls its functions to record events and identify users. Non-visual: it only holds
+     state and coordinates work, it never draws anything. -->
+<component name="CleverTap" extends="Node">
+    <interface>
+        <!-- Public callfunc entry points (init, recordEvent, ...) are added as the SDK
+             grows. Empty for now. -->
+    </interface>
+    <script type="text/brightscript" uri="CleverTap.brs" />
+</component>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Background worker node. Roku forbids network calls on the render thread, so all the
+     HTTP work (domain handshake + uploading batches) happens here on its own thread.
+     Results are written back to fields the main node observes. -->
+<component name="CleverTapTask" extends="Task">
+    <interface>
+        <!-- The batch payload to upload and the config it needs; set by the main node. -->
+        <field id="request" type="assocarray" />
+        <!-- Result the main node reads after the upload finishes. -->
+        <field id="response" type="assocarray" alwaysNotify="true" />
+    </interface>
+    <script type="text/brightscript" uri="CleverTapTask.brs" />
+</component>
