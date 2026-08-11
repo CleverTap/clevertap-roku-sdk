@@ -1,0 +1,10 @@
+' Entry point for the off-device test run. Builds one test context, runs every suite
+' against it, and prints the summary. New suites get added here as modules land.
+sub main()
+    t = CTTest()
+
+    CleverTapDeviceTests(t)
+    CleverTapSessionTests(t)
+
+    t.report()
+end sub
