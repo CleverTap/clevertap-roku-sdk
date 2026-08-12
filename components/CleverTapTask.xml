@@ -10,4 +10,9 @@
         <field id="response" type="assocarray" alwaysNotify="true" />
     </interface>
     <script type="text/brightscript" uri="CleverTapTask.brs" />
+    <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
+         shared helpers this node calls. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapConstants.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
 </component>
