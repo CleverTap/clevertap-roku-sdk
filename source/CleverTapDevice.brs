@@ -28,6 +28,34 @@ sub CleverTapDeviceSetId(storage as object, deviceId as string)
     storage.write(CleverTapDeviceIdKey(), deviceId)
 end sub
 
+' Resolves the SDK credentials from the config the app passed to init(), falling back to
+' the Roku manifest for any value the app left out. This lets a channel either configure the
+' SDK in code or bake the keys into its manifest (clevertap_account_id / _token / _region).
+' appInfo is an roAppInfo (passed in so tests can supply a fake). Missing values come back
+' as "" so callers can check for them.
+function CleverTapResolveCredentials(config as object, appInfo as object) as object
+    consts = CleverTapConstants()
+    if config = invalid then config = {}
+
+    creds = {
+        accountId: CleverTapCredentialValue(config, "accountId", appInfo, consts.MANIFEST_ACCOUNT_ID)
+        token: CleverTapCredentialValue(config, "token", appInfo, consts.MANIFEST_TOKEN)
+        region: CleverTapCredentialValue(config, "region", appInfo, consts.MANIFEST_REGION)
+        proxyDomain: ""
+    }
+    ' Proxy domain is code-only; there's no manifest fallback for it.
+    if config.DoesExist("proxyDomain") and config.proxyDomain <> invalid then creds.proxyDomain = config.proxyDomain
+    return creds
+end function
+
+' Prefers the value from the init() config; if absent or blank, reads the manifest key.
+function CleverTapCredentialValue(config as object, key as string, appInfo as object, manifestKey as string) as string
+    if config.DoesExist(key) and config[key] <> invalid and config[key] <> "" then return config[key]
+    fromManifest = appInfo.GetValue(manifestKey)
+    if fromManifest <> invalid then return fromManifest
+    return ""
+end function
+
 ' Builds the app-fields map the server expects in the batch meta header. deviceInfo is an
 ' roDeviceInfo and appInfo is an roAppInfo; both are passed in so tests can supply fakes.
 function CleverTapDeviceAppFields(deviceInfo as object, appInfo as object) as object
