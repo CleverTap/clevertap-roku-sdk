@@ -10,6 +10,8 @@
         <function name="recordEvent" />
         <!-- Record a purchase. Arg: [details, items]. -->
         <function name="recordChargedEvent" />
+        <!-- Set attributes on the current user. Arg: [profileFields]. -->
+        <function name="profilePush" />
     </interface>
     <script type="text/brightscript" uri="CleverTap.brs" />
     <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
@@ -20,6 +22,7 @@
     <script type="text/brightscript" uri="pkg:/source/CleverTapSession.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapQueue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapProfile.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
 </component>

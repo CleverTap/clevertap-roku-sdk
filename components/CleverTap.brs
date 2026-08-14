@@ -89,6 +89,20 @@ function recordChargedEvent(args as object) as void
     ctMaybeFlush()
 end function
 
+' Sets attributes on the current user. args is [profileFields], a map of attribute
+' name -> value. Goes into the profile queue so it ships ahead of events on the next flush.
+function profilePush(args as object) as void
+    if not m.started then return
+
+    fields = args[0]
+    if fields = invalid then return
+
+    now = ctNow()
+    m.session.ensure(now)
+    m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), now))
+    ctMaybeFlush()
+end function
+
 ' --- flush scheduling ---
 
 ' Flush now if a full batch has built up, otherwise wait out the debounce window.
