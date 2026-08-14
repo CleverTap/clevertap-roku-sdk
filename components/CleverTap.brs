@@ -35,6 +35,8 @@ function init(config = invalid as dynamic) as void
     m.queue.load()
 
     m.redirectKey = "redirectDomain"
+    m.identityCacheKey = "identityCache"
+    m.identifiedKey = "identified"
     m.cachedRedirect = m.storage.read(m.redirectKey)
     m.failureCount = 0
     m.muted = false
@@ -102,6 +104,57 @@ function profilePush(args as object) as void
     m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), now))
     ctMaybeFlush()
 end function
+
+' Identifies a user and sets their attributes. args is [profileFields], where the map may
+' carry an identity field (Identity, Email, or Phone). Depending on whether that identity is
+' new, returning, or already active, this may switch to a different device id first.
+function onUserLogin(args as object) as void
+    if not m.started then return
+
+    input = args[0]
+    if input = invalid then return
+
+    cache = ctLoadIdentityCache()
+    identified = (m.storage.read(m.identifiedKey) = "1")
+    ' Candidate id used only if this turns out to be a brand-new user.
+    newId = CreateObject("roDeviceInfo").GetRandomUUID()
+
+    decision = CleverTapResolveLogin(input, m.deviceId, identified, cache, newId)
+
+    if decision.action = "switch" then
+        ' Moving to a different user: drop the previous user's unsent items so they can't be
+        ' attributed to this one, and start a fresh session under the new id.
+        m.queue.clear()
+        m.session.reset()
+        m.deviceId = decision.deviceId
+        CleverTapDeviceSetId(m.storage, decision.deviceId)
+    end if
+
+    ' Remember the identity -> id mapping and that the device is now identified.
+    if decision.cacheKey <> invalid then
+        cache[decision.cacheKey] = decision.deviceId
+        ctSaveIdentityCache(cache)
+        m.storage.write(m.identifiedKey, "1")
+    end if
+
+    ' Push the supplied attributes under the (possibly new) id.
+    now = ctNow()
+    m.session.ensure(now)
+    m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now))
+    ctMaybeFlush()
+end function
+
+function ctLoadIdentityCache() as object
+    raw = m.storage.read(m.identityCacheKey)
+    if raw = invalid then return {}
+    parsed = ParseJson(raw)
+    if parsed = invalid then return {}
+    return parsed
+end function
+
+sub ctSaveIdentityCache(cache as object)
+    m.storage.write(m.identityCacheKey, FormatJson(cache))
+end sub
 
 ' --- flush scheduling ---
 

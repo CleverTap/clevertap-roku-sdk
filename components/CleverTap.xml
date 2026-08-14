@@ -12,6 +12,9 @@
         <function name="recordChargedEvent" />
         <!-- Set attributes on the current user. Arg: [profileFields]. -->
         <function name="profilePush" />
+        <!-- Identify a user and set their attributes. Arg: [profileFields with an identity
+             field like Identity/Email/Phone]. -->
+        <function name="onUserLogin" />
     </interface>
     <script type="text/brightscript" uri="CleverTap.brs" />
     <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
@@ -23,6 +26,7 @@
     <script type="text/brightscript" uri="pkg:/source/CleverTapQueue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapProfile.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapLogin.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
 </component>
