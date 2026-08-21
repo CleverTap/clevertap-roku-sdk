@@ -33,6 +33,7 @@ function init(config = invalid as dynamic) as void
         m.deviceId = CleverTapDeviceGetId(m.storage)
         m.appFields = CleverTapDeviceAppFields(CreateObject("roDeviceInfo"), appInfo)
         m.session = CleverTapSession(m.storage)
+        m.meta = CleverTapMeta(m.storage)
         m.queue = CleverTapQueue(m.storage)
         m.queue.load()
 
@@ -235,7 +236,8 @@ sub ctFlush()
     if m.queue.isEmpty() then return
 
     batchItems = m.queue.nextBatch(CleverTapConstants().MAX_BATCH_SIZE)
-    meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields)
+    stamps = m.meta.stamps()
+    meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession())
     payload = FormatJson(CleverTapBuildBatch(meta, batchItems))
 
     m.inFlight = true
@@ -275,6 +277,10 @@ sub ctOnUploadResult(event as object)
             CleverTapDeviceSetId(m.storage, result.serverGuid)
         end if
         m.failureCount = 0
+        ' Record the upload time for the meta header (f_ts once, l_ts every time) and mark
+        ' this session past its first request so later batches report frs = false.
+        m.meta.recordSuccess(ctNow())
+        m.session.markFirstRequestSent()
         ' Remove only what actually went out, so items recorded mid-upload survive.
         m.queue.removeSent(result.sentCount)
         ' Anything left (a queue bigger than one batch) goes out next.
