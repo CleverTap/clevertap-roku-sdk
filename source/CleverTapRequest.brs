@@ -14,7 +14,11 @@ end function
 
 ' The first element of every batch. config carries accountId + token; deviceId is the
 ' current GUID; appFields is the device description block.
-function CleverTapBuildMetaHeader(config as object, deviceId as string, appFields as object) as object
+'
+' firstTs/lastTs are the first-ever and most-recent successful upload times (unix seconds,
+' both 0 until the first upload lands). frs is true on the first batch of a session and false
+' after. These mirror the mobile SDKs so the server sees the same new-vs-returning signals.
+function CleverTapBuildMetaHeader(config as object, deviceId as string, appFields as object, firstTs as integer, lastTs as integer, frs as boolean) as object
     return {
         "type": "meta"
         "af": appFields
@@ -22,9 +26,9 @@ function CleverTapBuildMetaHeader(config as object, deviceId as string, appField
         "tk": config.token
         "id": config.accountId
         "ddnd": true
-        "frs": true
-        "l_ts": 0
-        "f_ts": 0
+        "frs": frs
+        "l_ts": lastTs
+        "f_ts": firstTs
     }
 end function
 

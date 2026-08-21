@@ -5,9 +5,9 @@ function CleverTapRequestTests(t as object)
     url = CleverTapBuildUploadUrl("in1.clevertap-prod.com", "ACC-123", 1700000000)
     t.eq(url, "https://in1.clevertap-prod.com/a1?os=Roku&t=0.1.0&z=ACC-123&ts=1700000000", "upload url is built correctly")
 
-    ' Meta header matches the expected shape exactly.
+    ' Meta header matches the expected shape exactly. Timestamps and frs are passed through.
     af = { "Make": "Roku", "OS": "Roku" }
-    meta = CleverTapBuildMetaHeader({ accountId: "ACC-123", token: "TOK-9" }, "guid-1", af)
+    meta = CleverTapBuildMetaHeader({ accountId: "ACC-123", token: "TOK-9" }, "guid-1", af, 1699990000, 1700000000, false)
     expectedMeta = {
         "type": "meta"
         "af": { "Make": "Roku", "OS": "Roku" }
@@ -15,9 +15,9 @@ function CleverTapRequestTests(t as object)
         "tk": "TOK-9"
         "id": "ACC-123"
         "ddnd": true
-        "frs": true
-        "l_ts": 0
-        "f_ts": 0
+        "frs": false
+        "l_ts": 1700000000
+        "f_ts": 1699990000
     }
     t.eq(meta, expectedMeta, "meta header matches golden shape")
 
