@@ -68,6 +68,7 @@ end function
 ' Records a custom event. args is [name, props]; props is optional.
 function recordEvent(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     name = args[0]
     props = invalid
@@ -89,6 +90,7 @@ end function
 ' items array. Both ride in a reserved "Charged" event.
 function recordChargedEvent(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     details = args[0]
     items = invalid
@@ -104,6 +106,7 @@ end function
 ' name -> value. Goes into the profile queue so it ships ahead of events on the next flush.
 function profilePush(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     fields = args[0]
     if fields = invalid then return
@@ -119,6 +122,7 @@ end function
 ' new, returning, or already active, this may switch to a different device id first.
 function onUserLogin(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     input = args[0]
     if input = invalid then return
