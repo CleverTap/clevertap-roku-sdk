@@ -14,11 +14,8 @@ function CleverTapValidatorTests(t as object)
     t.isFalse(v.validateEventName("Charged").valid, "Charged is reserved")
     t.isFalse(v.validateEventName("app launched").valid, "reserved check is case-insensitive")
 
-    ' The reserved set mirrors the mobile SDKs: geofence, fetch, opt-out, and bounce names.
+    ' The reserved set draws from the mobile SDKs: fetch and bounce names.
     t.isFalse(v.validateEventName("wzrk_fetch").valid, "wzrk_fetch is reserved")
-    t.isFalse(v.validateEventName("Geocluster Entered").valid, "Geocluster Entered is reserved")
-    t.isFalse(v.validateEventName("Geocluster Exited").valid, "Geocluster Exited is reserved")
-    t.isFalse(v.validateEventName("SCCampaignOptOut").valid, "SCCampaignOptOut is reserved")
     t.isFalse(v.validateEventName("Notification Bounced").valid, "Notification Bounced is reserved")
 
     ' Over-long names are rejected.
