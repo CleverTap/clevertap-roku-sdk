@@ -20,6 +20,7 @@ function CleverTapSession(storage as object) as object
         keyIsFirst: "sessIsFirst"             ' 1 if the current session is the first ever
         keyPg: "sessPg"                        ' screen/activity counter within the session
         keyFirstDone: "sessFirstDone"         ' set once the very first session has happened
+        keyFrs: "sessFrs"                     ' "1" until this session has had a successful upload
 
         ' Starts a new session or resumes the current one, based on how long it has been
         ' since the last event. Call this before reading meta() for an event. "now" is unix
@@ -50,6 +51,19 @@ function CleverTapSession(storage as object) as object
             }
         end function
 
+        ' True while the current session has not yet had a batch land on the server, so the
+        ' next batch is the "first request in session" the meta header reports as frs. Cleared
+        ' by markFirstRequestSent and re-armed whenever a new session begins.
+        firstRequestInSession: function() as boolean
+            return m._readInt(m.keyFrs) = 1
+        end function
+
+        ' Call after a batch uploads successfully so later batches in this session report
+        ' frs = false.
+        markFirstRequestSent: sub()
+            m.storage.write(m.keyFrs, "0")
+        end sub
+
         ' Forces the next ensure() to begin a fresh session. Used when switching users so
         ' their events do not share a session with the previous user.
         reset: sub()
@@ -74,6 +88,8 @@ function CleverTapSession(storage as object) as object
             m.storage.write(m.keyLsl, lsl.ToStr())
             m.storage.write(m.keyPg, "1")
             m.storage.write(m.keyIsFirst, m._boolToStr(isFirst))
+            ' A fresh session's first batch is a first request again.
+            m.storage.write(m.keyFrs, "1")
         end sub
 
         _readInt: function(key as string) as dynamic

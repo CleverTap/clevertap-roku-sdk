@@ -26,6 +26,7 @@
     <script type="text/brightscript" uri="pkg:/source/CleverTapStorage.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapDevice.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapSession.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapMeta.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapQueue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapProfile.brs" />

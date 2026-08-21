@@ -14,6 +14,10 @@ function CleverTapValidatorTests(t as object)
     t.isFalse(v.validateEventName("Charged").valid, "Charged is reserved")
     t.isFalse(v.validateEventName("app launched").valid, "reserved check is case-insensitive")
 
+    ' The reserved set draws from the mobile SDKs: fetch and bounce names.
+    t.isFalse(v.validateEventName("wzrk_fetch").valid, "wzrk_fetch is reserved")
+    t.isFalse(v.validateEventName("Notification Bounced").valid, "Notification Bounced is reserved")
+
     ' Over-long names are rejected.
     longName = "a"
     for i = 1 to 10

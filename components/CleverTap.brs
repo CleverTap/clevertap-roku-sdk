@@ -33,6 +33,7 @@ function init(config = invalid as dynamic) as void
         m.deviceId = CleverTapDeviceGetId(m.storage)
         m.appFields = CleverTapDeviceAppFields(CreateObject("roDeviceInfo"), appInfo)
         m.session = CleverTapSession(m.storage)
+        m.meta = CleverTapMeta(m.storage)
         m.queue = CleverTapQueue(m.storage)
         m.queue.load()
 
@@ -68,6 +69,7 @@ end function
 ' Records a custom event. args is [name, props]; props is optional.
 function recordEvent(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     name = args[0]
     props = invalid
@@ -89,6 +91,7 @@ end function
 ' items array. Both ride in a reserved "Charged" event.
 function recordChargedEvent(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     details = args[0]
     items = invalid
@@ -104,6 +107,7 @@ end function
 ' name -> value. Goes into the profile queue so it ships ahead of events on the next flush.
 function profilePush(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     fields = args[0]
     if fields = invalid then return
@@ -119,6 +123,7 @@ end function
 ' new, returning, or already active, this may switch to a different device id first.
 function onUserLogin(args as object) as void
     if not m.started then return
+    if args = invalid or args.Count() = 0 then return
 
     input = args[0]
     if input = invalid then return
@@ -231,7 +236,8 @@ sub ctFlush()
     if m.queue.isEmpty() then return
 
     batchItems = m.queue.nextBatch(CleverTapConstants().MAX_BATCH_SIZE)
-    meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields)
+    stamps = m.meta.stamps()
+    meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession())
     payload = FormatJson(CleverTapBuildBatch(meta, batchItems))
 
     m.inFlight = true
@@ -271,6 +277,10 @@ sub ctOnUploadResult(event as object)
             CleverTapDeviceSetId(m.storage, result.serverGuid)
         end if
         m.failureCount = 0
+        ' Record the upload time for the meta header (f_ts once, l_ts every time) and mark
+        ' this session past its first request so later batches report frs = false.
+        m.meta.recordSuccess(ctNow())
+        m.session.markFirstRequestSent()
         ' Remove only what actually went out, so items recorded mid-upload survive.
         m.queue.removeSent(result.sentCount)
         ' Anything left (a queue bigger than one batch) goes out next.

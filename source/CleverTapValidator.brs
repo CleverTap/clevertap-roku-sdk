@@ -6,12 +6,14 @@
 ' valid, and message explains the problem when not.
 
 ' Event names the server generates itself; apps must not send these through recordEvent.
-' "Charged" is reserved for recordChargedEvent.
+' Draws from the reserved set the mobile SDKs block, minus the push/geofence names Roku has
+' no features for. "Charged" is reserved for recordChargedEvent; "Notification Bounced" is a
+' Roku extra the server also owns.
 function CleverTapRestrictedEventNames() as object
     return [
         "Notification Clicked", "Notification Viewed", "Notification Sent",
         "Notification Bounced", "UTM Visited", "App Launched", "App Uninstalled",
-        "Stayed", "wzrk_d", "Charged"
+        "Stayed", "wzrk_fetch", "wzrk_d", "Charged"
     ]
 end function
 
