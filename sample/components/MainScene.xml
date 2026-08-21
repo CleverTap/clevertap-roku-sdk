@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Sample scene. Shows a menu of the SDK's public calls; press OK on a row to fire that one
+     call, then watch the single request go out in the debug console and check the CleverTap
+     dashboard. -->
+<component name="MainScene" extends="Scene">
+    <children>
+        <!-- CleverTap logo (white wordmark, red arc) sits on the dark scene. -->
+        <Poster id="logo" uri="pkg:/images/logo.png" translation="[80, 50]" width="300" height="112" loadDisplayMode="scaleToFit" />
+        <!-- Brand-red accent bar under the header. -->
+        <Rectangle id="accent" color="0xEF4444FF" translation="[80, 178]" width="1120" height="4" />
+        <Label id="title" text="Roku analytics sample" translation="[80, 196]" />
+        <LabelList id="menu" translation="[80, 250]" itemSize="[560, 64]" />
+        <Label id="status" text="Select a call and press OK - watch the debug console" translation="[80, 620]" />
+    </children>
+    <script type="text/brightscript" uri="MainScene.brs" />
+</component>

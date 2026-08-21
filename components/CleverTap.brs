@@ -14,46 +14,49 @@
 ' config carries accountId/token and optionally region or proxyDomain; any missing value
 ' falls back to the manifest.
 function init(config = invalid as dynamic) as void
+    ' On creation the SceneGraph runtime calls init() with no args. Don't use an explicit
+    ' `return` for that path: some SceneGraph runtimes invoke a component's init in a way that
+    ' lets an explicit return escape node creation and error out. So we branch here instead of
+    ' early-returning, and only configure when a config was actually passed.
     if config = invalid then
         m.started = false
-        return
+    else
+        appInfo = CreateObject("roAppInfo")
+        m.config = CleverTapResolveCredentials(config, appInfo)
+        if m.config.accountId = "" or m.config.token = "" then
+            print "CleverTap: missing account id or token; SDK inactive"
+            return
+        end if
+
+        ' Everything durable is namespaced per account so two accounts never collide.
+        m.storage = CleverTapStorage("clevertap_" + m.config.accountId)
+        m.deviceId = CleverTapDeviceGetId(m.storage)
+        m.appFields = CleverTapDeviceAppFields(CreateObject("roDeviceInfo"), appInfo)
+        m.session = CleverTapSession(m.storage)
+        m.queue = CleverTapQueue(m.storage)
+        m.queue.load()
+
+        m.redirectKey = "redirectDomain"
+        m.identityCacheKey = "identityCache"
+        m.identifiedKey = "identified"
+        m.cachedRedirect = m.storage.read(m.redirectKey)
+        m.failureCount = 0
+        m.muted = false
+        m.inFlight = false
+
+        ' Child that runs roUrlTransfer on its own thread; we watch its response field.
+        m.task = m.top.CreateChild("CleverTapTask")
+        m.task.observeField("response", "ctOnUploadResult")
+
+        ' Debounce timer: recording an event (re)starts it, so a burst of events uploads once.
+        m.timer = m.top.CreateChild("Timer")
+        m.timer.repeat = false
+        m.timer.observeField("fire", "ctOnFlushTimer")
+
+        m.started = true
+        ' Send anything left over from a previous run (for example events queued while offline).
+        ctScheduleFlush()
     end if
-
-    appInfo = CreateObject("roAppInfo")
-    m.config = CleverTapResolveCredentials(config, appInfo)
-    if m.config.accountId = "" or m.config.token = "" then
-        print "CleverTap: missing account id or token; SDK inactive"
-        return
-    end if
-
-    ' Everything durable is namespaced per account so two accounts never collide.
-    m.storage = CleverTapStorage("clevertap_" + m.config.accountId)
-    m.deviceId = CleverTapDeviceGetId(m.storage)
-    m.appFields = CleverTapDeviceAppFields(CreateObject("roDeviceInfo"), appInfo)
-    m.session = CleverTapSession(m.storage)
-    m.queue = CleverTapQueue(m.storage)
-    m.queue.load()
-
-    m.redirectKey = "redirectDomain"
-    m.identityCacheKey = "identityCache"
-    m.identifiedKey = "identified"
-    m.cachedRedirect = m.storage.read(m.redirectKey)
-    m.failureCount = 0
-    m.muted = false
-    m.inFlight = false
-
-    ' Child that runs roUrlTransfer on its own thread; we watch its response field.
-    m.task = m.top.CreateChild("CleverTapTask")
-    m.task.observeField("response", "ctOnUploadResult")
-
-    ' Debounce timer: recording an event (re)starts it, so a burst of events uploads once.
-    m.timer = m.top.CreateChild("Timer")
-    m.timer.repeat = false
-    m.timer.observeField("fire", "ctOnFlushTimer")
-
-    m.started = true
-    ' Send anything left over from a previous run (for example events queued while offline).
-    ctScheduleFlush()
 end function
 
 ' Records a custom event. args is [name, props]; props is optional.
@@ -142,6 +145,14 @@ function onUserLogin(args as object) as void
     m.session.ensure(now)
     m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now))
     ctMaybeFlush()
+end function
+
+' Returns the current CleverTap device id (GUID), or "" if the SDK isn't configured yet. This
+' is the same id CleverTap shows on the profile, so it's handy for matching a run to the
+' dashboard. args is unused.
+function getCleverTapID(args = invalid as dynamic) as string
+    if not m.started then return ""
+    return m.deviceId
 end function
 
 function ctLoadIdentityCache() as object

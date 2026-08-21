@@ -15,6 +15,9 @@
         <!-- Identify a user and set their attributes. Arg: [profileFields with an identity
              field like Identity/Email/Phone]. -->
         <function name="onUserLogin" />
+        <!-- Returns the current CleverTap device id (GUID) as a string, or "" if the SDK
+             isn't configured yet. Takes no arguments. -->
+        <function name="getCleverTapID" />
     </interface>
     <script type="text/brightscript" uri="CleverTap.brs" />
     <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the

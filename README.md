@@ -1,52 +1,105 @@
 # CleverTap Roku SDK
 
-Analytics SDK for Roku channels written in BrightScript / SceneGraph. It records events
-and identifies users, sending them to CleverTap. This first version covers analytics only:
+Analytics SDK for Roku channels, written in BrightScript / SceneGraph. It records events and
+identifies users, and sends that data to CleverTap.
 
-- `recordEvent` (with optional properties)
-- `recordChargedEvent`
-- `onUserLogin` (identify a user)
-- `profilePush` (set profile attributes)
+## Introduction
 
-## Install
+CleverTap brings together real-time user insights, an advanced segmentation engine, and
+easy-to-use marketing tools in one platform, giving your team the power to create experiences
+that deepen customer relationships.
 
-```
-ropm install clevertap
-```
+For more information, check out our [website](https://clevertap.com/) and
+[documentation](https://developer.clevertap.com/docs/). To get started, sign up
+[here](https://clevertap.com/live-product-demo/).
 
-This pulls the SDK into your channel's `source/` and `components/` under the `clevertap`
-namespace.
+## What this SDK covers
 
-## Quick start
+This first version is analytics only. It exposes four calls:
+
+- `recordEvent` - record a custom event, with optional properties.
+- `recordChargedEvent` - record a purchase with line items.
+- `onUserLogin` - identify a user.
+- `profilePush` - set attributes on the current user.
+
+It also exposes `getCleverTapID`, which returns the current device id (the CleverTap ID) so
+you can match a session to its profile in the dashboard.
+
+## Requirements
+
+- A Roku SceneGraph channel written in BrightScript.
+- A CleverTap account. Your Account ID, Token, and region are in your CleverTap
+  [Dashboard](https://dashboard.clevertap.com), under Settings -> Integration.
+
+## Installation
+
+The SDK is a set of BrightScript source files and SceneGraph components. Add it to your
+channel by copying this repo's `source/` and `components/` folders into your channel's own
+`source/` and `components/` folders. That registers the `CleverTap` node and its background
+upload task.
+
+## Integration
+
+Create the SDK node once, keep it somewhere every component can reach, for example on
+`m.global`, and initialize it.
 
 ```brightscript
 ' In your main scene's init():
-ct = CreateObject("roSGNode", "clevertap:CleverTap")
+ct = CreateObject("roSGNode", "CleverTap")
 m.global.addFields({ clevertap: ct })
 
-' Pass credentials directly...
+' Pass your credentials directly...
 ct.callfunc("init", { accountId: "YOUR_ACCOUNT_ID", token: "YOUR_TOKEN", region: "in1" })
+```
 
-' ...or leave them out and add clevertap_account_id / clevertap_token / clevertap_region
-' to your channel manifest, then:
+Or, instead of passing credentials in code, add them to your channel `manifest`:
+
+```
+clevertap_account_id=YOUR_ACCOUNT_ID
+clevertap_token=YOUR_TOKEN
+clevertap_region=in1
+```
+
+and call `init` with an empty object:
+
+```brightscript
 ct.callfunc("init", {})
 ```
 
-Record events and profiles from anywhere on the render thread:
+## Usage
+
+Once initialized, call the SDK from anywhere on the render thread through the node you stored:
 
 ```brightscript
-ct.callfunc("recordEvent", ["Product viewed", { id: 42, name: "Bat" }])
-ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
-ct.callfunc("onUserLogin", [{ Identity: "u123", Email: "sam@x.com", Name: "Sam" }])
+ct = m.global.clevertap
+
+' Identify a user
+ct.callfunc("onUserLogin", [{ Identity: "u123", Email: "sam@example.com", Name: "Sam" }])
+
+' Set attributes on the current user
 ct.callfunc("profilePush", [{ Name: "Sam", plan: "pro", favTeam: "IND" }])
+
+' Record an event, with optional properties
+ct.callfunc("recordEvent", ["Product viewed", { id: 42, name: "Bat" }])
+
+' Record a purchase with line items
+ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
+
+' Get the current CleverTap device id (the CleverTap ID)
+ctId = ct.callfunc("getCleverTapID", invalid)
 ```
+
+## Sample channel
+
+A runnable sample lives in [`sample/`](sample/). It starts the SDK and shows a menu of these
+calls; select a row and press OK to fire that call, then check your CleverTap dashboard. See
+[`sample/README.md`](sample/README.md) for how to assemble and sideload it.
 
 ## Development
 
-Requires Node.js. Install tooling with `npm install`. Unit tests use
-[rooibos](https://github.com/rokucommunity/rooibos); build the test channel with
-`npm test` and sideload it to a Roku device in Developer Mode to run the suite.
+Building the SDK from source and running its tests is covered in
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
-## Status
+## License
 
-Work in progress. See the repository plan for the full implementation roadmap.
+MIT, as declared in `package.json`.
