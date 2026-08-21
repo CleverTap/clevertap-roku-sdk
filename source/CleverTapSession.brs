@@ -23,17 +23,21 @@ function CleverTapSession(storage as object) as object
 
         ' Starts a new session or resumes the current one, based on how long it has been
         ' since the last event. Call this before reading meta() for an event. "now" is unix
-        ' seconds, passed in so behaviour is easy to test.
-        ensure: sub(now as integer)
+        ' seconds, passed in so behaviour is easy to test. Returns true when it began a fresh
+        ' session, so the caller can fire an App Launched event on session boundaries.
+        ensure: function(now as integer) as boolean
             lastActivity = m._readInt(m.keyLastActivity)
 
+            startedNew = false
             if lastActivity = invalid or (now - lastActivity) > m.windowSeconds then
                 m._startNew(now)
+                startedNew = true
             end if
 
             ' Touch the session so the inactivity window is measured from this event.
             m.storage.write(m.keyLastActivity, now.ToStr())
-        end sub
+            return startedNew
+        end function
 
         ' The per-event session fields: session id, screen count, previous session length,
         ' and whether this is the first-ever session.

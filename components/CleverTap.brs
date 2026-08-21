@@ -43,6 +43,10 @@ function init(config = invalid as dynamic) as void
         m.failureCount = 0
         m.muted = false
         m.inFlight = false
+        ' Tracks whether this run has recorded its App Launched event yet. Starts false on
+        ' every node creation (so once per channel launch) and is re-armed whenever a new
+        ' session begins - see ctEnsureSession.
+        m.appLaunchRecorded = false
 
         ' Child that runs roUrlTransfer on its own thread; we watch its response field.
         m.task = m.top.CreateChild("CleverTapTask")
@@ -54,7 +58,9 @@ function init(config = invalid as dynamic) as void
         m.timer.observeField("fire", "ctOnFlushTimer")
 
         m.started = true
-        ' Send anything left over from a previous run (for example events queued while offline).
+        ' Fire App Launched for this launch (the mobile SDKs do the same on cold start), then
+        ' send it alongside anything left over from a previous run (e.g. events queued offline).
+        ctEnsureSession(ctNow())
         ctScheduleFlush()
     end if
 end function
@@ -74,7 +80,7 @@ function recordEvent(args as object) as void
     end if
 
     now = ctNow()
-    m.session.ensure(now)
+    ctEnsureSession(now)
     m.queue.enqueueEvent(CleverTapBuildEvent(check.value, props, m.session.meta(), now))
     ctMaybeFlush()
 end function
@@ -89,7 +95,7 @@ function recordChargedEvent(args as object) as void
     if args.Count() > 1 then items = args[1]
 
     now = ctNow()
-    m.session.ensure(now)
+    ctEnsureSession(now)
     m.queue.enqueueEvent(CleverTapBuildChargedEvent(details, items, m.session.meta(), now))
     ctMaybeFlush()
 end function
@@ -103,7 +109,7 @@ function profilePush(args as object) as void
     if fields = invalid then return
 
     now = ctNow()
-    m.session.ensure(now)
+    ctEnsureSession(now)
     m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), now))
     ctMaybeFlush()
 end function
@@ -140,9 +146,12 @@ function onUserLogin(args as object) as void
         m.storage.write(m.identifiedKey, "1")
     end if
 
-    ' Push the supplied attributes under the (possibly new) id.
+    ' Push the supplied attributes under the (possibly new) id. On a switch the session was
+    ' just reset, so ctEnsureSession starts a fresh one and fires App Launched into the now
+    ' empty queue ahead of this profile - matching the mobile clear -> App Launched -> profile
+    ' order.
     now = ctNow()
-    m.session.ensure(now)
+    ctEnsureSession(now)
     m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now))
     ctMaybeFlush()
 end function
@@ -154,6 +163,23 @@ function getCleverTapID(args = invalid as dynamic) as string
     if not m.started then return ""
     return m.deviceId
 end function
+
+' Advances the session for an event at "now" and records App Launched when appropriate:
+' the first time this run touches a session (once per channel launch) and again whenever a
+' new session begins - i.e. after an inactivity timeout or a user switch. Call this before
+' enqueueing the event that triggered it, so App Launched leads the batch.
+sub ctEnsureSession(now as integer)
+    startedNew = m.session.ensure(now)
+    if (not m.appLaunchRecorded) or startedNew then ctRecordAppLaunched(now)
+end sub
+
+' Enqueues the reserved App Launched event. It carries the device/app fields as its data,
+' mirroring the mobile SDKs (these also ride the batch meta header). Built directly rather
+' than through recordEvent so it bypasses the reserved-name check.
+sub ctRecordAppLaunched(now as integer)
+    m.queue.enqueueEvent(CleverTapBuildEvent(CleverTapConstants().APP_LAUNCHED_EVENT_NAME, m.appFields, m.session.meta(), now))
+    m.appLaunchRecorded = true
+end sub
 
 function ctLoadIdentityCache() as object
     raw = m.storage.read(m.identityCacheKey)

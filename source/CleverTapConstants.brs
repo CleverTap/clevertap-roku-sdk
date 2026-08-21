@@ -40,6 +40,10 @@ function CleverTapConstants() as object
         ' Reserved event name for purchases recorded via recordChargedEvent.
         CHARGED_EVENT_NAME: "Charged"
 
+        ' Reserved event the SDK fires itself at the start of every session (app launch,
+        ' session timeout, or user switch), mirroring the mobile SDKs.
+        APP_LAUNCHED_EVENT_NAME: "App Launched"
+
         ' Keys the app can set in the manifest as a fallback when init() gets no creds.
         MANIFEST_ACCOUNT_ID: "clevertap_account_id"
         MANIFEST_TOKEN: "clevertap_token"
