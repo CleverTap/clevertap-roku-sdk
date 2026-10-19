@@ -188,5 +188,26 @@ credentials log one line and then the SDK stays inactive:
 
 **Events do not reach the dashboard.** Look for the `response status` line (it needs
 `clevertap_log_level=debug`). A `200` means the SDK's side is done, and the gap is in the
-account or the dashboard view. A `-1` means the request never completed, which is usually the
-device having no route to the internet.
+account or the dashboard view.
+
+**A negative status.** Anything below zero is not an HTTP status. The request never reached
+the server, so the number is a curl error code from the device. The SDK logs the device's own
+description next to it:
+
+```
+[CleverTap] ERROR POST to https://eu1.clevertap-prod.com/a1?... failed: Couldn't resolve host name (code -6)
+[CleverTap] ERROR send failed with status -6, will try again: Product viewed
+```
+
+The ones you are most likely to see:
+
+| Code | Means | Usual cause |
+|------|-------|-------------|
+| `-6` | the host name could not be turned into an address | no DNS. The device has no working internet, or is on a network that blocks it |
+| `-7` | the address was found but refused the connection | a firewall or proxy in the way |
+| `-28` | the connection ran out of time | a very slow or half-open network |
+| `-35` / `-60` | the secure connection could not be set up | the device clock is wrong, or a proxy is intercepting HTTPS |
+| `-1` | the SDK never got a reply at all | the request could not be started, or it ran past 30 seconds. A `timed out after 30s` line appears with it |
+
+Except for `-1`, these numbers come from the device, not from the SDK. The batch stays in the
+queue and goes out on the next try, so nothing is lost while the network is down.

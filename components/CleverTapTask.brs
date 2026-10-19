@@ -61,7 +61,11 @@ sub ctRunUpload()
     }
 end sub
 
-' One HTTP call. Returns { code, headers, body }; code is -1 on transport failure/timeout.
+' One HTTP call. Returns { code, headers, body }.
+'
+' code is the HTTP status when the server replied. It is a negative curl error number when
+' the request never got that far, for example -6 when the host name could not be turned into
+' an address. It is -1 when the request could not be started, or when it ran past 30 seconds.
 function ctHttpRequest(method as string, url as string, body as dynamic, headers as object) as object
     port = CreateObject("roMessagePort")
     transfer = CreateObject("roUrlTransfer")
@@ -86,7 +90,14 @@ function ctHttpRequest(method as string, url as string, body as dynamic, headers
 
     msg = wait(30000, port)
     if type(msg) = "roUrlEvent" then
-        return { code: msg.GetResponseCode(), headers: msg.GetResponseHeaders(), body: msg.GetString() }
+        code = msg.GetResponseCode()
+        ' A code below zero is not an HTTP status. It is a curl error number, and the number
+        ' alone says nothing. For example -6 means the device could not turn the host name
+        ' into an address. The device can describe the error, so log that description.
+        if code < 0 then
+            CleverTapLogError(method + " to " + url + " failed: " + msg.GetFailureReason() + " (code " + code.ToStr() + ")")
+        end if
+        return { code: code, headers: msg.GetResponseHeaders(), body: msg.GetString() }
     end if
 
     ' Timed out; cancel and report a transport failure.
