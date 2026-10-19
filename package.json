@@ -11,6 +11,15 @@
     "analytics"
   ],
   "license": "MIT",
+  "author": "CleverTap",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CleverTap/clevertap-roku-sdk.git"
+  },
+  "homepage": "https://github.com/CleverTap/clevertap-roku-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/CleverTap/clevertap-roku-sdk/issues"
+  },
   "files": [
     "source/",
     "components/"
