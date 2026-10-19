@@ -54,6 +54,7 @@ function CleverTapBuildChargedEvent(details as object, items as object, sessionM
     data = {}
     if details <> invalid then
         for each key in details
+            CleverTapWarnMiscasedKey(key, CleverTapConstants().CHARGED_RESERVED_KEYS, "charge detail")
             data[key] = details[key]
         end for
     end if
@@ -61,6 +62,32 @@ function CleverTapBuildChargedEvent(details as object, items as object, sessionM
     data["Items"] = items
 
     return CleverTapBuildEvent(CleverTapConstants().CHARGED_EVENT_NAME, data, sessionMeta, epochSeconds)
+end function
+
+' A short description of what a batch contains, written for the log. Events are listed by
+' name. A profile update is listed as "profile". Only the first few are named. The rest are
+' counted, so the line stays readable for a full batch of 49.
+function CleverTapDescribeBatch(items as object) as string
+    maxNamed = 5
+    named = 0
+    text = ""
+
+    for each item in items
+        if named >= maxNamed then exit for
+        if item["type"] = "profile" then
+            label = "profile"
+        else
+            label = item["evtName"]
+        end if
+
+        if text <> "" then text = text + ", "
+        text = text + label
+        named = named + 1
+    end for
+
+    remaining = items.Count() - named
+    if remaining > 0 then text = text + " and " + remaining.ToStr() + " more"
+    return text
 end function
 
 ' Assembles the final batch array: meta header first, then the queued items.

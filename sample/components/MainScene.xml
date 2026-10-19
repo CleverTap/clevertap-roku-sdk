@@ -9,7 +9,8 @@
         <!-- Brand-red accent bar under the header. -->
         <Rectangle id="accent" color="0xEF4444FF" translation="[80, 178]" width="1120" height="4" />
         <Label id="title" text="Roku analytics sample" translation="[80, 196]" />
-        <LabelList id="menu" translation="[80, 250]" itemSize="[560, 64]" />
+        <!-- Six rows at 58px end at y=598, which leaves the status label at y=620 clear. -->
+        <LabelList id="menu" translation="[80, 250]" itemSize="[560, 58]" />
         <Label id="status" text="Select a call and press OK - watch the debug console" translation="[80, 620]" />
     </children>
     <script type="text/brightscript" uri="MainScene.brs" />

@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "build": "bsc",
-    "test": "node scripts/run-tests.js"
+    "test": "node scripts/run-tests.js",
+    "sample:zip": "npm test && npm run build && node scripts/build-sample.js"
   },
   "ropm": {
     "rootDir": "."

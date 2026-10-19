@@ -30,7 +30,8 @@ end sub
 
 ' Resolves the SDK credentials from the config the app passed to init(), falling back to
 ' the Roku manifest for any value the app left out. This lets a channel either configure the
-' SDK in code or bake the keys into its manifest (clevertap_account_id / _token / _region).
+' SDK in code or bake the keys into its manifest (clevertap_account_id / _token / _region /
+' _log_level).
 ' appInfo is an roAppInfo (passed in so tests can supply a fake). Missing values come back
 ' as "" so callers can check for them.
 function CleverTapResolveCredentials(config as object, appInfo as object) as object
@@ -41,6 +42,8 @@ function CleverTapResolveCredentials(config as object, appInfo as object) as obj
         accountId: CleverTapCredentialValue(config, "accountId", appInfo, consts.MANIFEST_ACCOUNT_ID)
         token: CleverTapCredentialValue(config, "token", appInfo, consts.MANIFEST_TOKEN)
         region: CleverTapCredentialValue(config, "region", appInfo, consts.MANIFEST_REGION)
+        ' How much the SDK logs. "" means the logger keeps its own default.
+        logLevel: CleverTapCredentialValue(config, "logLevel", appInfo, consts.MANIFEST_LOG_LEVEL)
         proxyDomain: ""
     }
     ' Proxy domain is code-only; there's no manifest fallback for it.

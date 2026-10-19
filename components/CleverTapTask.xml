@@ -13,6 +13,10 @@
     <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
          shared helpers this node calls. -->
     <script type="text/brightscript" uri="pkg:/source/CleverTapConstants.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapLog.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
+    <!-- CleverTapRequest reports a key spelled in the wrong letter case, and that check
+         lives in CleverTapValidator. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
 </component>

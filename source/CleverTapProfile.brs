@@ -23,6 +23,7 @@ function CleverTapBuildProfile(fields as object, sessionMeta as object, epochSec
     profile = {}
 
     for each key in fields
+        CleverTapWarnMiscasedKey(key, CleverTapConstants().PROFILE_RESERVED_KEYS, "profile field")
         if CleverTapIsSystemProfileKey(key) then
             profile[key] = fields[key]
         else
@@ -30,7 +31,7 @@ function CleverTapBuildProfile(fields as object, sessionMeta as object, epochSec
             if check.valid then
                 profile[check.value] = fields[key]
             else
-                print "CleverTap: " + check.message
+                CleverTapLogError("profile key rejected, " + check.message)
             end if
         end if
     end for

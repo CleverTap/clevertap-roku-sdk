@@ -14,6 +14,8 @@ end sub
 sub ctRunUpload()
     req = m.top.request
     config = req.config
+    ' Each SceneGraph thread has its own logger state, so the level is set again here.
+    CleverTapLogSetLevel(config.logLevel)
 
     resolved = CleverTapResolveDomain(config, req.cachedRedirect)
     domain = resolved.domain
@@ -21,6 +23,7 @@ sub ctRunUpload()
 
     ' No region/proxy/cached host: ask /hello where to send, then remember it.
     if resolved.needsHandshake then
+        CleverTapLogDebug("no server address known yet, asking " + CleverTapConstants().HANDSHAKE_URL)
         hello = ctHttpRequest("GET", CleverTapConstants().HANDSHAKE_URL, invalid, ctRequestHeaders(config))
         if hello.code = 200 then
             headers = CleverTapParseResponseHeaders(hello.headers)
@@ -29,13 +32,18 @@ sub ctRunUpload()
         end if
         ' Handshake did not give us a host: report failure so the caller retries later.
         if domain = invalid or domain = "" then
+            CleverTapLogError("handshake returned no server address, status " + hello.code.ToStr())
             m.top.response = ctFailure(req.sentCount)
             return
         end if
+        CleverTapLogDebug("handshake returned host " + domain)
     end if
 
     url = CleverTapBuildUploadUrl(domain, config.accountId, ctNowSeconds())
+    CleverTapLogDebug("POST " + url)
+    CleverTapLogDebug("payload " + req.payload)
     post = ctHttpRequest("POST", url, req.payload, ctRequestHeaders(config))
+    CleverTapLogDebug("response status " + post.code.ToStr() + ", body " + post.body)
 
     parsed = CleverTapParseResponseHeaders(post.headers)
     ' Prefer a redirect learned from the upload; fall back to the handshake's.
@@ -71,7 +79,10 @@ function ctHttpRequest(method as string, url as string, body as dynamic, headers
     else
         started = transfer.AsyncGetToString()
     end if
-    if not started then return { code: -1, headers: {}, body: "" }
+    if not started then
+        CleverTapLogError("could not start the " + method + " request to " + url)
+        return { code: -1, headers: {}, body: "" }
+    end if
 
     msg = wait(30000, port)
     if type(msg) = "roUrlEvent" then
@@ -79,6 +90,7 @@ function ctHttpRequest(method as string, url as string, body as dynamic, headers
     end if
 
     ' Timed out; cancel and report a transport failure.
+    CleverTapLogError("the " + method + " request to " + url + " timed out after 30s")
     transfer.AsyncCancel()
     return { code: -1, headers: {}, body: "" }
 end function

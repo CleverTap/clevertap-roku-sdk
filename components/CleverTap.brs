@@ -23,8 +23,10 @@ function init(config = invalid as dynamic) as void
     else
         appInfo = CreateObject("roAppInfo")
         m.config = CleverTapResolveCredentials(config, appInfo)
+        ' Set the level before anything else logs, so an early failure obeys it.
+        CleverTapLogSetLevel(m.config.logLevel)
         if m.config.accountId = "" or m.config.token = "" then
-            print "CleverTap: missing account id or token; SDK inactive"
+            CleverTapLogError("missing account id or token, SDK inactive")
             return
         end if
 
@@ -36,6 +38,7 @@ function init(config = invalid as dynamic) as void
         m.meta = CleverTapMeta(m.storage)
         m.queue = CleverTapQueue(m.storage)
         m.queue.load()
+        CleverTapLogDebug("queued items restored from storage: " + m.queue.count().ToStr())
 
         m.redirectKey = "redirectDomain"
         m.identityCacheKey = "identityCache"
@@ -44,6 +47,8 @@ function init(config = invalid as dynamic) as void
         m.failureCount = 0
         m.muted = false
         m.inFlight = false
+        ' Names the items in the request that is on its way. Used by the log only.
+        m.inFlightDescription = ""
         ' Tracks whether this run has recorded its App Launched event yet. Starts false on
         ' every node creation (so once per channel launch) and is re-armed whenever a new
         ' session begins - see ctEnsureSession.
@@ -59,6 +64,8 @@ function init(config = invalid as dynamic) as void
         m.timer.observeField("fire", "ctOnFlushTimer")
 
         m.started = true
+        CleverTapLogInfo("initialized, account " + m.config.accountId + ", sdk " + CleverTapConstants().SDK_VERSION)
+        CleverTapLogDebug("device id " + m.deviceId)
         ' Fire App Launched for this launch (the mobile SDKs do the same on cold start), then
         ' send it alongside anything left over from a previous run (e.g. events queued offline).
         ctEnsureSession(ctNow())
@@ -77,13 +84,14 @@ function recordEvent(args as object) as void
 
     check = CleverTapValidator().validateEventName(name)
     if not check.valid then
-        print "CleverTap: " + check.message
+        CleverTapLogError("event rejected, " + check.message)
         return
     end if
 
     now = ctNow()
     ctEnsureSession(now)
     m.queue.enqueueEvent(CleverTapBuildEvent(check.value, props, m.session.meta(), now))
+    CleverTapLogInfo("event recorded: " + check.value)
     ctMaybeFlush()
 end function
 
@@ -97,9 +105,13 @@ function recordChargedEvent(args as object) as void
     items = invalid
     if args.Count() > 1 then items = args[1]
 
+    itemCount = 0
+    if items <> invalid then itemCount = items.Count()
+
     now = ctNow()
     ctEnsureSession(now)
     m.queue.enqueueEvent(CleverTapBuildChargedEvent(details, items, m.session.meta(), now))
+    CleverTapLogInfo("charged event recorded, line items: " + itemCount.ToStr())
     ctMaybeFlush()
 end function
 
@@ -115,6 +127,7 @@ function profilePush(args as object) as void
     now = ctNow()
     ctEnsureSession(now)
     m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), now))
+    CleverTapLogInfo("profile recorded, fields: " + fields.Count().ToStr())
     ctMaybeFlush()
 end function
 
@@ -134,14 +147,21 @@ function onUserLogin(args as object) as void
     newId = CreateObject("roDeviceInfo").GetRandomUUID()
 
     decision = CleverTapResolveLogin(input, m.deviceId, identified, cache, newId)
+    if decision.isNew then
+        CleverTapLogInfo("login: " + decision.action + ", first time this identity is seen")
+    else
+        CleverTapLogInfo("login: " + decision.action)
+    end if
 
     if decision.action = "switch" then
         ' Moving to a different user: drop the previous user's unsent items so they can't be
         ' attributed to this one, and start a fresh session under the new id.
+        CleverTapLogDebug("unsent items dropped for the previous user: " + m.queue.count().ToStr())
         m.queue.clear()
         m.session.reset()
         m.deviceId = decision.deviceId
         CleverTapDeviceSetId(m.storage, decision.deviceId)
+        CleverTapLogInfo("device id is now " + decision.deviceId)
     end if
 
     ' Remember the identity -> id mapping and that the device is now identified.
@@ -158,6 +178,7 @@ function onUserLogin(args as object) as void
     now = ctNow()
     ctEnsureSession(now)
     m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now))
+    CleverTapLogInfo("profile recorded, fields: " + input.Count().ToStr())
     ctMaybeFlush()
 end function
 
@@ -175,6 +196,7 @@ end function
 ' enqueueing the event that triggered it, so App Launched leads the batch.
 sub ctEnsureSession(now as integer)
     startedNew = m.session.ensure(now)
+    if startedNew then CleverTapLogInfo("new session " + m.session.meta().s.ToStr())
     if (not m.appLaunchRecorded) or startedNew then ctRecordAppLaunched(now)
 end sub
 
@@ -184,6 +206,7 @@ end sub
 sub ctRecordAppLaunched(now as integer)
     m.queue.enqueueEvent(CleverTapBuildEvent(CleverTapConstants().APP_LAUNCHED_EVENT_NAME, m.appFields, m.session.meta(), now))
     m.appLaunchRecorded = true
+    CleverTapLogInfo("event recorded: " + CleverTapConstants().APP_LAUNCHED_EVENT_NAME)
 end sub
 
 function ctLoadIdentityCache() as object
@@ -202,7 +225,9 @@ end sub
 
 ' Flush now if a full batch has built up, otherwise wait out the debounce window.
 sub ctMaybeFlush()
+    CleverTapLogDebug("items in queue: " + m.queue.count().ToStr())
     if m.queue.count() >= CleverTapConstants().MAX_BATCH_SIZE then
+        CleverTapLogDebug("a full batch has built up, sending now")
         ctFlush()
     else
         ctScheduleFlush()
@@ -220,8 +245,10 @@ end sub
 ' Wait longer before retrying, growing the delay with each consecutive failure.
 sub ctScheduleRetry()
     if m.muted or not m.started then return
+    delay = CleverTapBackoffSeconds(m.failureCount)
+    CleverTapLogInfo("sending again in " + delay.ToStr() + "s, failures in a row: " + m.failureCount.ToStr())
     m.timer.control = "stop"
-    m.timer.duration = CleverTapBackoffSeconds(m.failureCount)
+    m.timer.duration = delay
     m.timer.control = "start"
 end sub
 
@@ -239,6 +266,10 @@ sub ctFlush()
     stamps = m.meta.stamps()
     meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession())
     payload = FormatJson(CleverTapBuildBatch(meta, batchItems))
+    ' Kept so the line logged when the server replies can name the same items again.
+    m.inFlightDescription = CleverTapDescribeBatch(batchItems)
+    CleverTapLogInfo("sending to CleverTap: " + m.inFlightDescription)
+    CleverTapLogDebug("payload is " + Len(payload).ToStr() + " bytes")
 
     m.inFlight = true
     m.task.request = {
@@ -265,6 +296,7 @@ sub ctOnUploadResult(event as object)
 
     ' Server asked us to stop: drop the queue and stay quiet for the rest of the run.
     if result.mute then
+        CleverTapLogError("server asked the SDK to stop sending, queue cleared")
         m.muted = true
         m.queue.clear()
         return
@@ -275,6 +307,7 @@ sub ctOnUploadResult(event as object)
         if result.serverGuid <> invalid and result.serverGuid <> "" then
             m.deviceId = result.serverGuid
             CleverTapDeviceSetId(m.storage, result.serverGuid)
+            CleverTapLogInfo("device id is now " + result.serverGuid)
         end if
         m.failureCount = 0
         ' Record the upload time for the meta header (f_ts once, l_ts every time) and mark
@@ -283,16 +316,27 @@ sub ctOnUploadResult(event as object)
         m.session.markFirstRequestSent()
         ' Remove only what actually went out, so items recorded mid-upload survive.
         m.queue.removeSent(result.sentCount)
+        ' Success is not logged. The response status line already reports it, and a failure
+        ' is logged as an error. So silence after the "sending" line means it worked.
         ' Anything left (a queue bigger than one batch) goes out next.
-        if not m.queue.isEmpty() then ctScheduleFlush()
+        if not m.queue.isEmpty() then
+            CleverTapLogDebug("items still waiting: " + m.queue.count().ToStr())
+            ctScheduleFlush()
+        end if
     else
         ' Keep the queue intact and try again after a backoff.
+        CleverTapLogError("send failed with status " + result.statusCode.ToStr() + ", will try again: " + m.inFlightDescription)
         m.failureCount = m.failureCount + 1
         ctScheduleRetry()
     end if
 end sub
 
 sub ctCacheRedirect(domain as string)
+    ' There is no cached host on the first run, so treat a missing one as empty.
+    previous = m.cachedRedirect
+    if previous = invalid then previous = ""
+    if previous <> domain then CleverTapLogDebug("server address is now " + domain)
+
     m.cachedRedirect = domain
     m.storage.write(m.redirectKey, domain)
 end sub

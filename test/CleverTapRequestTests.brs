@@ -39,13 +39,40 @@ function CleverTapRequestTests(t as object)
     t.eq(evtNoProps.evtData, {}, "missing props default to an empty object")
 
     ' Charged event uses the reserved name and folds Items into evtData.
-    charged = CleverTapBuildChargedEvent({ Amount: 300 }, [{ id: 1 }, { id: 2 }], session, 1700000000)
+    charged = CleverTapBuildChargedEvent({ "Amount": 300 }, [{ "id": 1 }, { "id": 2 }], session, 1700000000)
     t.eq(charged.evtName, "Charged", "charged event uses the reserved name")
-    t.eq(charged.evtData, { Amount: 300, Items: [{ id: 1 }, { id: 2 }] }, "charge details and items are merged")
+    t.eq(charged.evtData, { "Amount": 300, "Items": [{ "id": 1 }, { "id": 2 }] }, "charge details and items are merged")
+
+    ' A charge detail spelled in the wrong letter case is reported, and still sent as given.
+    ' The device turns { Amount: 300 } into { amount: 300 } before the SDK sees it, so this
+    ' log line is the only way the app learns that the server will not read it as the
+    ' purchase value.
+    CleverTapLogSetConsoleOutput(false)
+    CleverTapLogClear()
+    miscased = CleverTapBuildChargedEvent({ "amount": 300 }, [], session, 1700000000)
+    reported = CleverTapLogLines()
+    CleverTapLogSetConsoleOutput(true)
+
+    t.eq(reported.Count(), 1, "a charge detail in the wrong letter case is reported once")
+    t.isTrue(Instr(1, reported[0], "'amount'") > 0, "the report names the key the app sent")
+    t.isTrue(Instr(1, reported[0], "'Amount'") > 0, "the report names the spelling the server wants")
+    t.isTrue(miscased.evtData.DoesExist("amount"), "the key is still sent exactly as the app wrote it")
 
     ' Batch puts the meta header first, then the items.
     batch = CleverTapBuildBatch(meta, [evt])
     t.eq(batch.Count(), 2, "batch has meta plus one event")
     t.eq(batch[0].type, "meta", "meta header comes first")
     t.eq(batch[1].evtName, "Product viewed", "event follows the header")
+
+    ' The log description of a batch names events and marks profile updates.
+    t.eq(CleverTapDescribeBatch([]), "", "an empty batch describes as an empty string")
+    t.eq(CleverTapDescribeBatch([evt]), "Product viewed", "a single event is named on its own")
+    t.eq(CleverTapDescribeBatch([{ type: "profile" }, evt]), "profile, Product viewed", "a profile update is named as profile")
+
+    ' Only the first few are named. A full batch must still fit on one line.
+    many = []
+    for i = 1 to 8
+        many.Push({ type: "event", evtName: "E" + i.ToStr() })
+    end for
+    t.eq(CleverTapDescribeBatch(many), "E1, E2, E3, E4, E5 and 3 more", "a long batch names the first few and counts the rest")
 end function

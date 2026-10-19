@@ -17,6 +17,36 @@ function CleverTapRestrictedEventNames() as object
     ]
 end function
 
+' Finds a key the app spelled with the wrong letters in upper or lower case.
+'
+' The server matches reserved key names exactly. "Amount" is the purchase value. "amount" is
+' an ordinary custom property, and the server does not report it as revenue. BrightScript
+' makes this easy to get wrong: a key written without quotes inside an associative array
+' literal is an identifier, and the device stores every identifier in lower case. So
+' { Amount: 300 } reaches the SDK as { amount: 300 }, and the original spelling is already
+' gone. Writing the key in quotes, as { "Amount": 300 }, keeps it.
+'
+' knownKeys holds the spellings the server expects. Returns the expected spelling when key
+' matches one of them apart from letter case. Returns invalid when key matches exactly, and
+' when it is not a reserved key at all.
+function CleverTapMiscasedKey(key as string, knownKeys as object) as dynamic
+    lower = LCase(key)
+    for each known in knownKeys
+        if known = key then return invalid
+        if LCase(known) = lower then return known
+    end for
+    return invalid
+end function
+
+' Logs a key the app spelled with the wrong letter case, and names the fix. The key is sent
+' on as given, because only the app knows what it meant. label says where the key came from,
+' for example "charge detail" or "profile field".
+sub CleverTapWarnMiscasedKey(key as string, knownKeys as object, label as string)
+    expected = CleverTapMiscasedKey(key, knownKeys)
+    if expected = invalid then return
+    CleverTapLogError(label + " '" + key + "' is sent as a custom property. The server reads it as '" + expected + "' only when it is spelled that way. Write the key in quotes: { """ + expected + """: ... }")
+end sub
+
 ' Longest values the server accepts.
 function CleverTapValidator() as object
     return {

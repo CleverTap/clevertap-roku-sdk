@@ -74,20 +74,42 @@ Once initialized, call the SDK from anywhere on the render thread through the no
 ct = m.global.clevertap
 
 ' Identify a user
-ct.callfunc("onUserLogin", [{ Identity: "u123", Email: "sam@example.com", Name: "Sam" }])
+ct.callfunc("onUserLogin", [{ "Identity": "u123", "Email": "sam@example.com", "Name": "Sam" }])
 
 ' Set attributes on the current user
-ct.callfunc("profilePush", [{ Name: "Sam", plan: "pro", favTeam: "IND" }])
+ct.callfunc("profilePush", [{ "Name": "Sam", "plan": "pro", "favTeam": "IND" }])
 
 ' Record an event, with optional properties
-ct.callfunc("recordEvent", ["Product viewed", { id: 42, name: "Bat" }])
+ct.callfunc("recordEvent", ["Product viewed", { "id": 42, "name": "Bat" }])
 
 ' Record a purchase with line items
-ct.callfunc("recordChargedEvent", [{ Amount: 300 }, [{ id: 1 }, { id: 2 }]])
+ct.callfunc("recordChargedEvent", [{ "Amount": 300 }, [{ "id": 1 }, { "id": 2 }]])
 
 ' Get the current CleverTap device id (the CleverTap ID)
 ctId = ct.callfunc("getCleverTapID", invalid)
 ```
+
+### Always write property keys in quotes
+
+Every key above is in quotes. This matters on Roku.
+
+A key written without quotes inside `{ }` is an identifier to BrightScript, and BrightScript
+identifiers are case-insensitive, so the device stores the key in lower case. `{ Amount: 300 }`
+becomes `{ amount: 300 }` before the SDK ever sees it, and the original spelling is gone.
+
+CleverTap matches reserved names exactly. `Amount` is the purchase value. `amount` is an
+ordinary custom property, and the purchase is not reported as revenue. The same applies to
+`Identity`, `Name`, `Email`, `Phone` and the other profile fields.
+
+Nothing fails, so this is easy to miss. The SDK reports a key that looks like a reserved name
+spelled in the wrong case:
+
+```
+[CleverTap] ERROR charge detail 'amount' is sent as a custom property. The server reads it as
+'Amount' only when it is spelled that way. Write the key in quotes: { "Amount": ... }
+```
+
+Quoting every key is the simple rule that avoids the whole problem.
 
 ## Sample channel
 

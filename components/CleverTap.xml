@@ -23,6 +23,7 @@
     <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
          shared modules this node uses. -->
     <script type="text/brightscript" uri="pkg:/source/CleverTapConstants.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapLog.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapStorage.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapDevice.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapSession.brs" />

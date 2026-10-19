@@ -1,0 +1,192 @@
+# Run the sample on a real Roku device
+
+Build the sample channel, load it onto a Roku device, and read the SDK's log output.
+
+This is the setup that can check what the SDK really sends. The browser simulator cannot do
+that. See [RUN_ON_SIMULATOR.md](RUN_ON_SIMULATOR.md) if you have no device.
+
+## What you need
+
+- A Roku device. A Streaming Stick plugged into any HDMI screen is enough.
+- The device and your computer on the **same network**. Sideloading and the log console both
+  talk to the device directly.
+- [Node.js](https://nodejs.org) installed. Check it with `node -v`.
+
+## 1. Put the device in developer mode
+
+On the Roku remote, press:
+
+**Home x3, Up x2, Right, Left, Right, Left, Right**
+
+A Developer Settings screen appears. Enable developer mode, accept the agreement, and set a
+password. Write the password down. You need it every time you sideload, and the only way to
+see it again is to repeat this sequence.
+
+The device restarts afterwards.
+
+## 2. Find the device's IP address
+
+On the device: **Settings -> Network -> About**. Note the IP address, for example
+`192.168.1.42`.
+
+Everything below uses `<roku-ip>` to mean that address.
+
+## 3. Build the channel zip
+
+From the **repo root**:
+
+```
+npm run sample:zip
+```
+
+One command. It runs the unit tests, compiles the SDK, packs it, reinstalls it into the
+sample, checks the sample really got your current code, and writes the zip.
+
+It prints the path at the end:
+
+```
+Sideload this: /path/to/clevertap-roku-sdk/clevertap-roku-sample.zip
+```
+
+If any step fails the zip is not written, so you cannot sideload a build that did not compile.
+
+## 4. Start watching the logs
+
+Do this **before** you sideload. The most interesting lines are printed during startup, and
+you cannot get them back once they have scrolled past.
+
+The SDK prints to the BrightScript debug console on port 8085. macOS removed `telnet`, so use
+`nc`:
+
+```
+nc <roku-ip> 8085
+```
+
+On Windows, use PuTTY in Raw or Telnet mode against port 8085.
+
+Leave this running in its own terminal window.
+
+## 5. Sideload the zip
+
+Open `http://<roku-ip>` in a browser. That is the Development Application Installer.
+
+1. Sign in. The username is `rokudev` and the password is the one from step 1.
+2. Choose the zip from step 3.
+3. Click **Replace** (or **Install** the first time).
+
+The channel launches on the device.
+
+## 6. Read the output
+
+In the `nc` window you should see something like this:
+
+```
+[CleverTap] initialized, account W8R-ZR9-Z96Z, sdk 0.1.0
+[CleverTap] device id 5e1f7c90-...
+[CleverTap] new session 1760871234
+[CleverTap] event recorded: App Launched
+[CleverTap] items in queue: 1
+[CleverTap] sending to CleverTap: App Launched
+[CleverTap] payload is 842 bytes
+[CleverTap] POST https://eu1.clevertap-prod.com/a1?os=Roku&t=0.1.0&z=W8R-ZR9-Z96Z&ts=...
+[CleverTap] payload [{"type":"meta",...}]
+[CleverTap] response status 200, body {"status":"success",...}
+```
+
+Use the remote's arrow keys and **OK** to fire the SDK calls from the menu. Each one logs what
+it recorded and what it sent. A send that worked logs nothing more, so silence after the
+`sending to CleverTap:` line is the good case.
+
+The last row, **Fire 3 events**, records three events with no pause between them. The SDK
+waits one second after the last recorded event before it sends, so all three go in a single
+request. The log shows one `sending to CleverTap:` line naming all three.
+
+Problems are labelled:
+
+```
+[CleverTap] ERROR send failed with status 500, will try again: App Launched
+```
+
+`ERROR` is the only level that names itself. Everything else is ordinary progress, so marking
+each line would just add noise.
+
+## Log levels
+
+The level is read from `sample/manifest`:
+
+```
+clevertap_log_level=debug
+```
+
+| Level | What you get |
+|-------|--------------|
+| `off` | nothing |
+| `error` | only things that went wrong |
+| `info` | what the SDK recorded and what it sent. The default. |
+| `debug` | the above plus request URLs, full payloads, response bodies, queue depth |
+
+Use `debug` while integrating. The full payload line is the one that answers "did we send the
+right JSON", which is the question a real device can settle and a cloud device cannot.
+
+An app can also pass `logLevel` to `init()`, which wins over the manifest:
+
+```brightscript
+clevertap.callfunc("init", { accountId: "...", token: "...", logLevel: "debug" })
+```
+
+Ship with `error`, or leave the key out to get `info`.
+
+## After you change code
+
+Re-run the same command, then sideload again:
+
+```
+npm run sample:zip
+```
+
+There is no separate "I only changed the sample" path. The command is fast and always
+correct, which matters more than saving a few seconds.
+
+### Why this is one command
+
+The sample consumes the SDK as a packed tarball pinned to a version number. The version
+rarely changes while the code does. npm compares its lockfile against that version, decides
+nothing has changed, and skips the install. The sample keeps running an old copy of the SDK.
+
+That failure is quiet. The zip builds, it sideloads, and it runs. It just runs yesterday's
+code. If a module was added since the stale copy was taken, the channel instead crashes on a
+function that does not exist, which sends you looking in the wrong place.
+
+So `npm run sample:zip` deletes the lockfile and the installed copy every time, and then
+checks the result: it compares every file in `source/` against the copy that landed in the
+sample, and refuses to build the zip if they differ.
+
+To check a zip you built earlier without building a new one:
+
+```
+node scripts/build-sample.js --check-only
+```
+
+## Troubleshooting
+
+**`nc` connects but prints nothing.** The channel is not running. Relaunch it from the Roku
+home screen, or sideload again. The console only prints while the channel is up.
+
+**`nc: connection refused`.** The device is not in developer mode, or the IP is wrong, or
+your computer is on a different network. A guest or IoT network will not reach it.
+
+**The installer page asks for a password you do not have.** Repeat step 1 to set a new one.
+Disabling and re-enabling developer mode factory-resets the sideloaded channel.
+
+**No `[CleverTap]` lines at all.** Check `clevertap_log_level` in `sample/manifest` is not
+`off`, and that `clevertap_account_id` and `clevertap_token` are filled in. Missing
+credentials log one line and then the SDK stays inactive:
+
+```
+[CleverTap] ERROR missing account id or token, SDK inactive
+```
+
+**Events do not reach the dashboard.** Look for the `response status` line (it needs
+`clevertap_log_level=debug`). A `200` means the SDK's side is done, and the gap is in the
+account or the dashboard view. A `-1` means the request never completed, which is usually the
+device having no route to the internet.
