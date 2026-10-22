@@ -15,6 +15,26 @@
         <!-- Identify a user and set their attributes. Arg: [profileFields with an identity
              field like Identity/Email/Phone]. -->
         <function name="onUserLogin" />
+
+        <!-- Profile commands. profilePush replaces the value of a key; these change part of
+             a value instead. Every one takes args as [key, value]. -->
+        <!-- Remove a property from the profile. Arg: [key]. -->
+        <function name="profileRemoveValueForKey" />
+        <!-- Replace the whole list of a multi-value property. Arg: [key, values]. -->
+        <function name="profileSetMultiValues" />
+        <!-- Put one value into a multi-value property. Arg: [key, value]. -->
+        <function name="profileAddMultiValue" />
+        <!-- Put several values into a multi-value property. Arg: [key, values]. -->
+        <function name="profileAddMultiValues" />
+        <!-- Take one value out of a multi-value property. Arg: [key, value]. -->
+        <function name="profileRemoveMultiValue" />
+        <!-- Take several values out of a multi-value property. Arg: [key, values]. -->
+        <function name="profileRemoveMultiValues" />
+        <!-- Raise a number property. Arg: [key, amount], amount above zero. -->
+        <function name="profileIncrementValueBy" />
+        <!-- Lower a number property. Arg: [key, amount], amount above zero. -->
+        <function name="profileDecrementValueBy" />
+
         <!-- Returns the current CleverTap device id (GUID) as a string, or "" if the SDK
              isn't configured yet. Takes no arguments. -->
         <function name="getCleverTapID" />

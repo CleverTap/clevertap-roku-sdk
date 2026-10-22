@@ -15,9 +15,9 @@ splash_color=#EF4444
 
 # CleverTap credentials can live here instead of being passed to init(). Fill these in (or pass
 # them to callfunc("init", {...}) in MainScene.brs) before sideloading.
-clevertap_account_id=YOUR_ACCOUNT_ID
-clevertap_token=YOUR_TOKEN
-clevertap_region=YOUR_REGION
+clevertap_account_id=W8R-ZR9-Z96Z
+clevertap_token=c21-2b0
+clevertap_region=eu1
 
 # How much the SDK logs to the debug console on port 8085. One of off, error, info, debug.
 # The sample uses debug so a sideloaded build shows every step. A real channel should ship

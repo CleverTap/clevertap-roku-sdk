@@ -22,6 +22,9 @@ This first version is analytics only. It exposes four calls:
 - `onUserLogin` - identify a user.
 - `profilePush` - set attributes on the current user.
 
+Eight more calls change one profile property without replacing it. See
+[Profile commands](#profile-commands).
+
 It also exposes `getCleverTapID`, which returns the current device id (the CleverTap ID) so
 you can match a session to its profile in the dashboard.
 
@@ -110,6 +113,48 @@ spelled in the wrong case:
 ```
 
 Quoting every key is the simple rule that avoids the whole problem.
+
+### Profile commands
+
+`profilePush` replaces the value of a key. The calls below change one part of a value
+instead, so you do not have to read the old value first.
+
+```brightscript
+ct = m.global.clevertap
+
+' Remove a property from the profile
+ct.callfunc("profileRemoveValueForKey", ["plan"])
+
+' Replace the whole list of a multi-value property
+ct.callfunc("profileSetMultiValues", ["favTeams", ["IND", "AUS"]])
+
+' Put values into that list
+ct.callfunc("profileAddMultiValue", ["favTeams", "ENG"])
+ct.callfunc("profileAddMultiValues", ["favTeams", ["NZ", "SA"]])
+
+' Take values out of that list
+ct.callfunc("profileRemoveMultiValue", ["favTeams", "AUS"])
+ct.callfunc("profileRemoveMultiValues", ["favTeams", ["NZ", "SA"]])
+
+' Move a number property up or down
+ct.callfunc("profileIncrementValueBy", ["points", 50])
+ct.callfunc("profileDecrementValueBy", ["points", 20])
+```
+
+Every one of these takes its arguments in the same order: the property name first, then the
+value.
+
+A few rules worth knowing:
+
+- A multi-value property holds text. A number you pass is turned into text, so `5` is stored
+  as `"5"`. One property holds at most 100 values, and anything past that is dropped.
+- The amount for an increment or a decrement must be above zero. To lower a value, use
+  `profileDecrementValueBy` rather than a negative amount.
+- The SDK keeps no copy of the profile, so it never merges a command with the current value.
+  It sends the command and CleverTap applies it. This also means there is no way to read a
+  property back on the device.
+- A call with a bad property name or a bad value is dropped and logged. Nothing else in the
+  queue is affected.
 
 ## Sample channel
 

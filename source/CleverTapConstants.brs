@@ -74,5 +74,25 @@ function CleverTapConstants() as object
         ' plus "Identity", which onUserLogin reads but which is not a system field.
         ' Used only to warn about a key the app spelled in the wrong letter case.
         PROFILE_RESERVED_KEYS: ["Identity", "Name", "Email", "Phone", "Age", "Gender", "DOB", "Birthday", "Education", "Married", "Employed"]
+
+        ' Commands the server understands inside a profile update. A plain profile update
+        ' replaces the value of a key. A command changes part of the value instead. The
+        ' command rides in the profile object as { "key": { "$add": ... } }.
+        '
+        ' $set replaces the whole list of a multi-value property.
+        ' $add puts values into that list.
+        ' $remove takes values out of that list.
+        ' $incr raises a number property by an amount.
+        ' $decr lowers a number property by an amount.
+        ' $delete removes the property from the profile.
+        PROFILE_COMMAND_SET: "$set"
+        PROFILE_COMMAND_ADD: "$add"
+        PROFILE_COMMAND_REMOVE: "$remove"
+        PROFILE_COMMAND_INCREMENT: "$incr"
+        PROFILE_COMMAND_DECREMENT: "$decr"
+        PROFILE_COMMAND_DELETE: "$delete"
+
+        ' Most values one multi-value property may hold. Values past this limit are dropped.
+        MAX_MULTI_VALUE_COUNT: 100
     }
 end function

@@ -182,6 +182,118 @@ function onUserLogin(args as object) as void
     ctMaybeFlush()
 end function
 
+' --- profile commands ---
+'
+' profilePush replaces the value of a key. The calls below change part of a value instead, so
+' the app does not have to read the old value first. Every one of them takes args in the same
+' shape: [key, value]. The key comes first, matching the Android SDK.
+'
+' The SDK keeps no copy of the profile. It sends the command and the server applies it, so
+' nothing here reads the current value.
+
+' Removes a property from the profile. args is [key].
+function profileRemoveValueForKey(args as object) as void
+    if not m.started then return
+    if args = invalid or args.Count() = 0 then return
+    ctEnqueueProfileCommand(args[0], CleverTapConstants().PROFILE_COMMAND_DELETE, true)
+end function
+
+' Replaces the whole list of a multi-value property. args is [key, values], where values is
+' an array. Every value is sent as text.
+function profileSetMultiValues(args as object) as void
+    if not m.started then return
+    ctProfileMultiValue(args, CleverTapConstants().PROFILE_COMMAND_SET)
+end function
+
+' Puts one value into a multi-value property. args is [key, value].
+function profileAddMultiValue(args as object) as void
+    if not m.started then return
+    ctProfileMultiValue(ctSingleValueArgs(args), CleverTapConstants().PROFILE_COMMAND_ADD)
+end function
+
+' Puts several values into a multi-value property. args is [key, values].
+function profileAddMultiValues(args as object) as void
+    if not m.started then return
+    ctProfileMultiValue(args, CleverTapConstants().PROFILE_COMMAND_ADD)
+end function
+
+' Takes one value out of a multi-value property. args is [key, value].
+function profileRemoveMultiValue(args as object) as void
+    if not m.started then return
+    ctProfileMultiValue(ctSingleValueArgs(args), CleverTapConstants().PROFILE_COMMAND_REMOVE)
+end function
+
+' Takes several values out of a multi-value property. args is [key, values].
+function profileRemoveMultiValues(args as object) as void
+    if not m.started then return
+    ctProfileMultiValue(args, CleverTapConstants().PROFILE_COMMAND_REMOVE)
+end function
+
+' Raises a number property by an amount. args is [key, amount]. The amount must be above
+' zero.
+function profileIncrementValueBy(args as object) as void
+    if not m.started then return
+    ctProfileAmount(args, CleverTapConstants().PROFILE_COMMAND_INCREMENT)
+end function
+
+' Lowers a number property by an amount. args is [key, amount]. The amount must be above
+' zero: pass the size of the drop, not a negative number.
+function profileDecrementValueBy(args as object) as void
+    if not m.started then return
+    ctProfileAmount(args, CleverTapConstants().PROFILE_COMMAND_DECREMENT)
+end function
+
+' Turns the args of a one-value call into the args of the matching list call, so both follow
+' one path. [key, value] becomes [key, [value]].
+function ctSingleValueArgs(args as object) as object
+    if args = invalid or args.Count() < 2 then return args
+    return [args[0], [args[1]]]
+end function
+
+' Shared body of the $set, $add and $remove calls. args is [key, values].
+sub ctProfileMultiValue(args as object, command as string)
+    if args = invalid or args.Count() < 2 then return
+
+    check = CleverTapNormaliseMultiValues(args[1])
+    if not check.valid then
+        CleverTapLogError("profile change rejected, " + check.message)
+        return
+    end if
+    ctEnqueueProfileCommand(args[0], command, check.value)
+end sub
+
+' Shared body of the $incr and $decr calls. args is [key, amount].
+sub ctProfileAmount(args as object, command as string)
+    if args = invalid or args.Count() < 2 then return
+
+    check = CleverTapValidateCommandAmount(args[1])
+    if not check.valid then
+        CleverTapLogError("profile change rejected, " + check.message)
+        return
+    end if
+    ctEnqueueProfileCommand(args[0], command, check.value)
+end sub
+
+' Checks the key and queues one command. Commands go into the profile queue, like
+' profilePush, so they ship ahead of events on the next flush.
+sub ctEnqueueProfileCommand(key as dynamic, command as string, value as dynamic)
+    check = CleverTapValidateCommandKey(key)
+    if not check.valid then
+        CleverTapLogError("profile change rejected, " + check.message)
+        return
+    end if
+
+    now = ctNow()
+    ctEnsureSession(now)
+    item = CleverTapBuildProfileCommand(check.value, command, value, m.session.meta(), now)
+    m.queue.enqueueProfile(item)
+    CleverTapLogInfo("profile changed: " + CleverTapDescribeProfileCommand(command, check.value, value))
+    ' The line above says what changed. This one shows the exact change that goes on the wire,
+    ' which is the one that answers "did it send what I passed".
+    CleverTapLogDebug("profile change is " + FormatJson(item.profile))
+    ctMaybeFlush()
+end sub
+
 ' Returns the current CleverTap device id (GUID), or "" if the SDK isn't configured yet. This
 ' is the same id CleverTap shows on the profile, so it's handy for matching a run to the
 ' dashboard. args is unused.
