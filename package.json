@@ -22,7 +22,8 @@
   },
   "files": [
     "source/",
-    "components/"
+    "components/",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "bsc",
