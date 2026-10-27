@@ -39,6 +39,7 @@ function init(config = invalid as dynamic) as void
         m.queue = CleverTapQueue(m.storage)
         m.queue.load()
         CleverTapLogDebug("queued items restored from storage: " + m.queue.count().ToStr())
+        ctWarnIfRegistryLow()
 
         m.redirectKey = "redirectDomain"
         m.identityCacheKey = "identityCache"
@@ -49,6 +50,10 @@ function init(config = invalid as dynamic) as void
         m.inFlight = false
         ' Names the items in the request that is on its way. Used by the log only.
         m.inFlightDescription = ""
+        ' The highest sequence number the request on its way took from each queue. Set by
+        ' ctFlush and read when the server replies. 0 means it took nothing from that queue.
+        m.inFlightProfileSeq = 0
+        m.inFlightEventSeq = 0
         ' Tracks whether this run has recorded its App Launched event yet. Starts false on
         ' every node creation (so once per channel launch) and is re-armed whenever a new
         ' session begins - see ctEnsureSession.
@@ -147,11 +152,7 @@ function onUserLogin(args as object) as void
     newId = CreateObject("roDeviceInfo").GetRandomUUID()
 
     decision = CleverTapResolveLogin(input, m.deviceId, identified, cache, newId)
-    if decision.isNew then
-        CleverTapLogInfo("login: " + decision.action + ", first time this identity is seen")
-    else
-        CleverTapLogInfo("login: " + decision.action)
-    end if
+    CleverTapLogInfo("login: " + ctLoginOutcomeText(decision))
 
     if decision.action = "switch" then
         ' Moving to a different user: drop the previous user's unsent items so they can't be
@@ -180,6 +181,25 @@ function onUserLogin(args as object) as void
     m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now))
     CleverTapLogInfo("profile recorded, fields: " + input.Count().ToStr())
     ctMaybeFlush()
+end function
+
+' Describes what a login did, for the log. The resolver names its outcomes for the code that
+' reads them. Those names are not written to the log, because the log is read by people
+' integrating the SDK.
+function ctLoginOutcomeText(decision as object) as string
+    if decision.action = "profileOnly" then
+        return "no identifying field was sent. The attributes go on the current user."
+    end if
+    if decision.action = "claim" then
+        return "no user was identified on this device before. The current device id now belongs to this user."
+    end if
+    if decision.action = "same" then
+        return "this is already the current user. Only the attributes are updated."
+    end if
+    if decision.isNew then
+        return "this user is seen for the first time. A new device id is created."
+    end if
+    return "this user is known on this device. Their earlier device id is restored."
 end function
 
 ' --- profile commands ---
@@ -333,6 +353,22 @@ sub ctSaveIdentityCache(cache as object)
     m.storage.write(m.identityCacheKey, FormatJson(cache))
 end sub
 
+' Warns at startup when the registry is nearly full.
+'
+' A Roku app gets one 32K registry, counted after compression, and the SDK shares it with
+' the channel it is built into. When the room runs out the SDK cannot save queued items,
+' and neither can the channel. The number is logged so an integrator can see the cause
+' during development instead of guessing later.
+sub ctWarnIfRegistryLow()
+    if not m.storage.DoesExist("spaceAvailable") then return
+
+    left = m.storage.spaceAvailable()
+    CleverTapLogDebug("registry space left: " + left.ToStr() + " bytes of 32K")
+    if left < 4096 then
+        CleverTapLogError("only " + left.ToStr() + " bytes are left in this app's 32K registry. Recorded events may not survive a restart. The registry is shared with the channel, so check what else is stored there.")
+    end if
+end sub
+
 ' --- flush scheduling ---
 
 ' Flush now if a full batch has built up, otherwise wait out the debounce window.
@@ -374,12 +410,18 @@ sub ctFlush()
     if not m.started or m.muted or m.inFlight then return
     if m.queue.isEmpty() then return
 
-    batchItems = m.queue.nextBatch(CleverTapConstants().MAX_BATCH_SIZE)
+    batch = m.queue.nextBatch(CleverTapConstants().MAX_BATCH_SIZE)
+    batchItems = batch.items
     stamps = m.meta.stamps()
     meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession())
     payload = FormatJson(CleverTapBuildBatch(meta, batchItems))
     ' Kept so the line logged when the server replies can name the same items again.
     m.inFlightDescription = CleverTapDescribeBatch(batchItems)
+    ' The highest sequence number this batch took from each queue. Kept until the server
+    ' replies, because removeSent needs both numbers. Only one batch is ever on its way, so
+    ' one copy is enough.
+    m.inFlightProfileSeq = batch.profileSeq
+    m.inFlightEventSeq = batch.eventSeq
     CleverTapLogInfo("sending to CleverTap: " + m.inFlightDescription)
     CleverTapLogDebug("payload is " + Len(payload).ToStr() + " bytes")
 
@@ -387,7 +429,6 @@ sub ctFlush()
     m.task.request = {
         config: m.config
         payload: payload
-        sentCount: batchItems.Count()
         cachedRedirect: m.cachedRedirect
     }
     m.task.control = "RUN"
@@ -426,8 +467,9 @@ sub ctOnUploadResult(event as object)
         ' this session past its first request so later batches report frs = false.
         m.meta.recordSuccess(ctNow())
         m.session.markFirstRequestSent()
-        ' Remove only what actually went out, so items recorded mid-upload survive.
-        m.queue.removeSent(result.sentCount)
+        ' Remove only what actually went out. An item recorded while the upload was running
+        ' is left in the queue and goes out next time.
+        m.queue.removeSent(m.inFlightProfileSeq, m.inFlightEventSeq)
         ' Success is not logged. The response status line already reports it, and a failure
         ' is logged as an error. So silence after the "sending" line means it worked.
         ' Anything left (a queue bigger than one batch) goes out next.

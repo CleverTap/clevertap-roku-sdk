@@ -97,9 +97,40 @@ Use the remote's arrow keys and **OK** to fire the SDK calls from the menu. Each
 it recorded and what it sent. A send that worked logs nothing more, so silence after the
 `sending to CleverTap:` line is the good case.
 
-The last row, **Fire 3 events**, records three events with no pause between them. The SDK
-waits one second after the last recorded event before it sends, so all three go in a single
-request. The log shows one `sending to CleverTap:` line naming all three.
+**Fire 3 events** records three events with no pause between them. The SDK waits one second
+after the last recorded event before it sends, so all three go in a single request. The log
+shows one `sending to CleverTap:` line naming all three.
+
+### The login rows
+
+The three rows at the top are named after the fields they send:
+
+| Row | Fields sent | Matched on |
+|-----|-------------|------------|
+| **Login A - Email, Name** | `Email: sam@example.com`, `Name: Sam` | `Email` |
+| **Login B - Email, Name** | `Email: bea@example.com`, `Name: Bea` | `Email` |
+| **Login C - Name only, no identifier** | `Name: Cas`, `plan: free` | nothing |
+
+Only `Identity`, `Email` and `Phone` identify a user, and the SDK reads them in that order, so
+the first one present wins. Rows A and B send an `Email` and no `Identity`, so `Email` is what
+they are matched on - an email address identifies a user on its own. `Name` never identifies
+anyone, which is what row C is there to show.
+
+Press them in this order to walk through all five outcomes of `onUserLogin`:
+
+| Press | What happens | Device id |
+|-------|--------------|-----------|
+| **Login A**, on a device never identified before | the current id is claimed for A | unchanged |
+| **Login A** again | already the current user, attributes only | unchanged |
+| **Login B** | a different user with no id yet, so one is made. A's unsent items are dropped and a new session starts | **changes** |
+| **Login A** again | A is known, so the id from the first press comes back | **changes** |
+| **Login C** | no identifying field to look up, attributes land on whoever is current | unchanged |
+
+The id at the end of the status line on screen is how you tell these apart.
+
+The first row only behaves that way on a device where this channel has never identified
+anyone. The claim is recorded permanently, so after it that row takes the fourth path
+instead. Sideloading again does **not** reset this.
 
 Problems are labelled:
 

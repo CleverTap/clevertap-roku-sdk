@@ -33,7 +33,7 @@ sub ctRunUpload()
         ' Handshake did not give us a host: report failure so the caller retries later.
         if domain = invalid or domain = "" then
             CleverTapLogError("handshake returned no server address, status " + hello.code.ToStr())
-            m.top.response = ctFailure(req.sentCount)
+            m.top.response = ctFailure()
             return
         end if
         CleverTapLogDebug("handshake returned host " + domain)
@@ -53,7 +53,6 @@ sub ctRunUpload()
     m.top.response = {
         success: (post.code = 200)
         statusCode: post.code
-        sentCount: req.sentCount
         redirectDomain: redirect
         spikyDomain: parsed.spikyDomain
         mute: parsed.mute
@@ -115,11 +114,10 @@ function ctRequestHeaders(config as object) as object
     return headers
 end function
 
-function ctFailure(sentCount as integer) as object
+function ctFailure() as object
     return {
         success: false
         statusCode: -1
-        sentCount: sentCount
         redirectDomain: invalid
         spikyDomain: invalid
         mute: false
