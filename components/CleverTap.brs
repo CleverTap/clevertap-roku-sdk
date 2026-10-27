@@ -374,6 +374,19 @@ end sub
 ' Flush now if a full batch has built up, otherwise wait out the debounce window.
 sub ctMaybeFlush()
     CleverTapLogDebug("items in queue: " + m.queue.count().ToStr())
+
+    ' A send failed and a retry is already waiting. m.failureCount is above zero only while
+    ' that is true. Sending now, or restarting the timer, would cut the backoff short. The
+    ' delay would go back to one second every time an item is recorded. The backoff would
+    ' never be waited out.
+    '
+    ' This item does not need its own attempt. It waits in the queue. The retry that is
+    ' already waiting sends it in the same batch.
+    if m.failureCount > 0 then
+        CleverTapLogDebug("a retry is already waiting, this item goes out with it")
+        return
+    end if
+
     if m.queue.count() >= CleverTapConstants().MAX_BATCH_SIZE then
         CleverTapLogDebug("a full batch has built up, sending now")
         ctFlush()
