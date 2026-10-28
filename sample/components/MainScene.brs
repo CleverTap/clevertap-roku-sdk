@@ -52,7 +52,7 @@ end sub
 ' bottom to watch one list property being built up and then cut back down:
 ' [IND, AUS] -> [IND, AUS, ENG] -> [IND, AUS, ENG, NZ, SA] -> [IND, ENG, NZ, SA] -> [IND, ENG].
 '
-' The last two rows are diagnostics. They are not part of that session order.
+' The last two rows are not part of that session order. Each one stands on its own.
 function ctBuildMenu() as object
     root = CreateObject("roSGNode", "ContentNode")
     labels = [
@@ -72,8 +72,8 @@ function ctBuildMenu() as object
         "Remove multi-values (NZ, SA)",
         "Increment points by 50",
         "Decrement points by 20",
-        "Fill queue past the cap (40 events)",
-        "Push two dates of birth (1990 and 1965)"
+        "Push two dates of birth (1990 and 1965)",
+        "Record event with nested properties"
     ]
     for each label in labels
         root.CreateChild("ContentNode").title = label
@@ -123,9 +123,9 @@ sub ctOnItemSelected(event as object)
         end for
         m.status.text = "3 events fired, expect one request"
     else if index = 16 then
-        ctFillQueuePastCap(ct)
-    else if index = 17 then
         ctPushDatesOfBirth(ct)
+    else if index = 17 then
+        ctRecordNestedEvent(ct)
     else
         ' Rows 8 to 15 are the profile commands. They sit in their own sub to keep this one
         ' short.
@@ -137,36 +137,6 @@ sub ctOnItemSelected(event as object)
     ' we read it after the call.
     id = ct.callfunc("getCleverTapID", invalid)
     if id <> "" then m.status.text = m.status.text + " | id " + id
-end sub
-
-' Records enough events to push the event queue past the size it is allowed to reach. This
-' row is a diagnostic. It does not demonstrate part of the public API.
-'
-' The queue may hold 8000 characters of JSON. It drops its oldest entries to stay under
-' that. This row makes the drop happen on purpose.
-'
-' The padding is the point. One small event takes roughly 200 characters once the SDK has
-' added the session fields. 40 small events would land near the limit. The result would be
-' hard to read. Each event below takes roughly 350 characters instead. 40 of them reach
-' roughly 14000 characters. The limit is then passed by a wide margin.
-'
-' Look for this line in the console. The SDK writes it once for each queue:
-'   the event queue reached its 8000 character limit ...
-'
-' Two notes on what you will see:
-'
-' A successful upload empties the queue. The stored value would then be an empty list by
-' the time you open the registry viewer. Put an account id that does not work in the
-' manifest to stop the uploads. The log line above is written either way.
-'
-' 40 is below the 49 that trigger an immediate send. The SDK waits out its usual pause
-' before it sends. Raise the count to 49 to watch a full batch leave in one request.
-sub ctFillQueuePastCap(ct as object)
-    pad = "0123456789012345678901234567890123456789"
-    for i = 1 to 40
-        ct.callfunc("recordEvent", ["Queue filler", { "id": i, "a": pad, "b": pad, "c": pad, "d": pad }])
-    end for
-    m.status.text = "40 padded events fired, check the log for the queue limit line"
 end sub
 
 ' Sends two dates of birth. A date is written as a map with one key, "date". An roDateTime
@@ -190,6 +160,43 @@ sub ctPushDatesOfBirth(ct as object)
         "dobBefore1970": { "date": -152496000 }
     }])
     m.status.text = "two dates of birth sent, check the payload for $D_640310400 and $D_-152496000"
+end sub
+
+' Records an event whose property holds other values inside it.
+'
+' Every other event row on this menu sends flat properties. A flat property is one piece of
+' text, one number, or true or false. "show" below is a map. It carries a title, a date, and
+' a list of teams. The SDK sends all of it.
+'
+' Two things in here are worth watching in the payload.
+'
+' "airedOn" is a date. It is not at the top of the event. The SDK still finds it. The payload
+' should show "airedOn":"$D_640310400". A date is converted at any level the SDK reads.
+'
+' "teams" is a list inside a map. Lists and maps can be mixed freely.
+'
+' The SDK opens three levels of maps and lists. "show" is the first level here. "teams" is
+' the second. Nothing in this row reaches the limit. A value written deeper than three levels
+' is sent without the parts inside it, and the SDK reports that in the console.
+'
+' One warning about the dashboard. CleverTap stores nested properties only after the feature
+' is enabled on the account. Ask the CleverTap team to enable it. Before that the request
+' still succeeds. The console shows the nested payload going out. The data does not appear in
+' the dashboard. The date is not affected. It reaches the server as plain text.
+'
+' The dashboard does not show "show" as one property. CleverTap flattens what it receives.
+' Each value inside gets its own property. The name of each one is the path it sat at. This
+' row arrives as "show.title", "show.airedOn" and "show.teams".
+sub ctRecordNestedEvent(ct as object)
+    ct.callfunc("recordEvent", ["Product viewed", {
+        "id": 42
+        "show": {
+            "title": "Final over"
+            "airedOn": { "date": 640310400 }
+            "teams": ["IND", "AUS"]
+        }
+    }])
+    m.status.text = "nested event sent, check the payload for the 'show' map and $D_640310400. The account needs nested properties enabled before the dashboard stores them"
 end sub
 
 ' Fires one profile command. profilePush replaces the value of a key; these change one part

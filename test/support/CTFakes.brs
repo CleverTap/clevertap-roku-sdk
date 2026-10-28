@@ -27,7 +27,21 @@ function CTFakeDeviceInfo() as object
         GetTimeZone: function() as string
             return "US/Pacific"
         end function
+        GetConnectionType: function() as string
+            return "WiFiConnection"
+        end function
     }
+end function
+
+' The same fake with a chosen connection type. Roku answers "WiFiConnection",
+' "WiredConnection", or "" when there is no connection.
+function CTFakeDeviceInfoWithConnection(connectionType as string) as object
+    fake = CTFakeDeviceInfo()
+    fake.connectionType = connectionType
+    fake.GetConnectionType = function() as string
+        return m.connectionType
+    end function
+    return fake
 end function
 
 ' The same fake with a chosen time zone, including the case where the device reports none.

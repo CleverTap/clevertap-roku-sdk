@@ -25,6 +25,11 @@ This first version is analytics only. It exposes four calls:
 Eight more calls change one profile property without replacing it. See
 [Profile commands](#profile-commands).
 
+Two calls cover privacy. See [Privacy and GDPR](#privacy-and-gdpr).
+
+- `setOptOut` - stop or resume reporting for the current viewer.
+- `enableDeviceNetworkInfoReporting` - turn reporting of network details on or off.
+
 It also exposes `getCleverTapID`, which returns the current device id (the CleverTap ID) so
 you can match a session to its profile in the dashboard.
 
@@ -140,13 +145,68 @@ An event property can be a date too:
 ct.callfunc("recordEvent", ["Watched", { "airedOn": { "date": 640310400 } }])
 ```
 
+The SDK looks inside maps and lists, so a date is found wherever you write it. The line
+items of a purchase are a list of maps, and a date in one of them works the same way:
+
+```brightscript
+ct.callfunc("recordChargedEvent", [
+    { "Amount": 300, "boughtOn": { "date": 640310400 } },
+    [{ "id": 1, "name": "Match ticket", "airedOn": { "date": 640310400 } }]
+])
+```
+
+The search goes three levels down, counting both maps and lists. A value nested deeper than
+that is sent without the parts nested inside it, and a date written down there stays a map
+rather than becoming a date. The SDK says so:
+
+```
+[CleverTap] ERROR 'a.b.c.d' is nested more than 3 levels deep. Its own values were sent, and
+anything nested inside it was left out. A date written this deep is not converted.
+```
+
+**Nesting has to be switched on for your account.** The SDK sends a nested value as written,
+but CleverTap only stores it once the feature is enabled. Event properties and profile
+attributes are switched on separately, so ask the CleverTap team for both if you need both.
+Until then the request still succeeds, the console still shows the nested payload going out,
+and the value is dropped on arrival. Nothing is logged at either end, so the only sign is
+that the data never reaches the dashboard.
+
+Once it is on, CleverTap flattens what you send. It does not keep the nesting. Each value
+inside becomes its own property, named by the path it sat at, and the map itself is not a
+property you can report on. The event above arrives as three properties:
+
+```
+show.title     Final over
+show.airedOn   17/04/1990
+show.teams     IND, AUS
+```
+
+A list adds its position to the name, so `teams[0].city` is what a map inside a list is
+called. Build your dashboard reports against those names.
+
+Two things this does not cover. A purchase is left out: CleverTap does not flatten anything
+inside a `Charged` event, so keep the line items of a purchase flat and put nested data on
+an event of your own. A date is not affected either way, because it stops being a map before
+it leaves the device - it travels as plain text and lands as a date wherever you wrote it.
+
+The limit is also what keeps a mistake cheap. A map can be made to hold itself:
+
+```brightscript
+show = {}
+show["self"] = show    ' don't do this
+```
+
+Roku's JSON writer refuses a value like that. Without the limit, one such property would
+make every event waiting on the device unsendable. The SDK copies what you give it, so a
+value that holds itself costs you that one property and nothing else.
+
 **Why a map and not `roDateTime`.** BrightScript has a date object, `roDateTime`, but you
 cannot hand one to the SDK. Every call reaches the SDK through `callfunc`, and an
 `roDateTime` does not survive that call. It arrives as nothing. A map does survive, which is
 why the date is written as one.
 
-A map is safe to use as the marker. CleverTap stores an attribute as one value or as a list
-of values, so a map was never something you could send.
+Any map that carries a `date` key is read as a date, before the SDK looks at it as nested
+data. Whatever else that map holds is dropped, so give the date a map of its own.
 
 A number on its own is **not** read as a date:
 
@@ -230,6 +290,81 @@ A few rules worth knowing:
   property back on the device.
 - A call with a bad property name or a bad value is dropped and logged. Nothing else in the
   queue is affected.
+
+## Privacy and GDPR
+
+### Right to suppress - opt out
+
+A viewer can ask not to be reported. Your app offers that choice in its own settings, then
+tells the SDK:
+
+```brightscript
+' Stop reporting this viewer.
+clevertap.callfunc("setOptOut", [true])
+
+' Report this viewer again.
+clevertap.callfunc("setOptOut", [false])
+```
+
+While a viewer is opted out, nothing is sent. Events you record are dropped before they are
+queued, so they do not sit on the device waiting either.
+
+There is a middle setting. Pass a second argument to keep the SDK's own bookkeeping events
+flowing while everything you record is still dropped:
+
+```brightscript
+clevertap.callfunc("setOptOut", [true, true])
+```
+
+The only such event this SDK sends is `App Launched`, which tells CleverTap a session
+started. Without it, sessions on the server never close. Use this when a viewer asked not to
+be tracked but you still need usage figures that name nobody. A purchase is **not** treated
+as a bookkeeping event, so `recordChargedEvent` is dropped under either setting.
+
+| | you record an event | `recordChargedEvent` | `App Launched` | profile changes |
+| --- | --- | --- | --- | --- |
+| opted in (default) | sent | sent | sent | sent |
+| `[true, true]` | dropped | dropped | sent | sent |
+| `[true]` | dropped | dropped | dropped | dropped |
+
+The SDK sends the choice to CleverTap as a profile attribute, so campaigns built on the
+server are suppressed too. It then keeps the choice on the device, against that viewer's
+CleverTap ID. The viewer does not have to opt out again next launch, and a viewer who signs
+out and back in is still opted out.
+
+By default the SDK reports, and the opt-out is false. Your app is still the place the answer
+really lives, so calling `setOptOut` with the stored answer on every launch is good practice.
+
+### Device network information
+
+The SDK reports nothing about the network, and tells CleverTap not to work out where a
+viewer is from the address the request came from. To turn that on:
+
+```brightscript
+clevertap.callfunc("enableDeviceNetworkInfoReporting", [true])
+```
+
+That adds whether the device is on WiFi rather than a cable, and lets CleverTap read an
+approximate location from the request address. A Roku device has no mobile radio, so unlike
+the mobile SDKs there is no carrier or mobile network to report.
+
+This is off unless you turn it on, and the setting is kept on the device.
+
+### Marketing opt out
+
+To take a viewer out of all marketing channels, set these attributes on their profile. This
+needs no special call:
+
+```brightscript
+clevertap.callfunc("profilePush", [{
+    "MSG-email": false
+    "MSG-push": false
+    "MSG-sms": false
+    "MSG-push-all": false
+}])
+```
+
+By default every channel is available.
 
 ## Sample channel
 

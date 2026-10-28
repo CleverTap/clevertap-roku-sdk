@@ -4,7 +4,7 @@
 function CleverTapConstants() as object
     return {
         ' SDK version reported to the server (the "t" query param on uploads).
-        SDK_VERSION: "0.1.0"
+        SDK_VERSION: "1.0.0"
 
         ' Reported as the "os" query param and inside the app-fields block.
         OS_NAME: "Roku"
@@ -86,7 +86,7 @@ function CleverTapConstants() as object
         IDENTITY_KEYS: ["Identity", "Email", "Phone"]
 
         ' Profile keys the server treats as known system fields; everything else is custom.
-        SYSTEM_PROFILE_KEYS: ["Name", "Email", "Phone", "Age", "Gender", "DOB", "Birthday", "Education", "Married", "Employed", "tz", "cc"]
+        SYSTEM_PROFILE_KEYS: ["Name", "Email", "Phone", "Age", "Gender", "DOB", "Birthday", "Education", "Married", "Employed", "tz", "cc", "ct_optout", "ct_allow_sys_events_and_communication"]
 
         ' The profile key that holds the time zone. The SDK sets it from the device, once per
         ' launch. The dashboard shows it as "Timezone".
@@ -95,6 +95,20 @@ function CleverTapConstants() as object
         ' The profile key that holds the country. The SDK sets it from the device, once per
         ' launch.
         COUNTRY_KEY: "cc"
+
+        ' The profile key that says the viewer asked not to be reported. The SDK sets it from
+        ' setOptOut. The server holds it against the profile, so a campaign built on the
+        ' server is not sent to that viewer either.
+        OPT_OUT_KEY: "ct_optout"
+
+        ' The profile key that says whether the SDK's own events are still sent while opted
+        ' out. See CleverTapPrivacy for what that means.
+        ALLOW_SYSTEM_EVENTS_KEY: "ct_allow_sys_events_and_communication"
+
+        ' The registry key that holds whether the app asked for network details to be
+        ' reported. This is an app setting, not a viewer setting, so one key covers every
+        ' viewer on the device.
+        NETWORK_INFO_KEY: "netInfo"
 
         ' The block of extra values the server sends back and the SDK repeats in the header
         ' of every later request. See CleverTapArp.
@@ -121,6 +135,19 @@ function CleverTapConstants() as object
         ' A date cannot be passed as an roDateTime, because an roDateTime does not survive
         ' the callfunc into the SDK node. A map does.
         DATE_MARKER_KEY: "date"
+
+        ' How many levels deep the SDK looks for a date. A property at the top of an event is
+        ' at depth 0. A property inside a map held by that property is at depth 1. A list
+        ' counts as a level too, so the line items of a purchase are at depth 1 and a date
+        ' written in one of them is found at depth 2.
+        '
+        ' The map that marks a date is not a level. It is the date itself, not something the
+        ' app chose to nest, so it is read at any depth the search reaches.
+        '
+        ' A value deeper than this limit is copied without the parts nested inside it, and
+        ' the SDK says so. The limit is what stops a value that holds itself. Such a value
+        ' would otherwise be followed until the channel ran out of room to follow it.
+                MAX_VALUE_DEPTH: 3
 
         ' Charged event keys the server gives a special meaning to. The SDK sets "Items"
         ' itself. The app supplies "Amount".

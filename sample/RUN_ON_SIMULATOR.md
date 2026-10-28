@@ -24,7 +24,7 @@ From the **repo root** (the folder that contains `source/`, `components/`, and `
 npm pack
 ```
 
-That creates a file like `clevertap-roku-sdk-0.1.0.tgz` in the repo root.
+That creates a file like `clevertap-roku-sdk-1.0.0.tgz` in the repo root.
 
 Now move into the sample and assemble it:
 

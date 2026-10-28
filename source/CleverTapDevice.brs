@@ -91,7 +91,10 @@ end function
 
 ' Builds the app-fields map the server expects in the batch meta header. deviceInfo is an
 ' roDeviceInfo and appInfo is an roAppInfo; both are passed in so tests can supply fakes.
-function CleverTapDeviceAppFields(deviceInfo as object, appInfo as object) as object
+'
+' reportNetworkInfo says whether the app asked for network details to be reported. It is off
+' unless the app turns it on. See CleverTapDeviceNetworkFields for what it adds.
+function CleverTapDeviceAppFields(deviceInfo as object, appInfo as object, reportNetworkInfo = false as boolean) as object
     osVersion = deviceInfo.GetOSVersion()
     display = deviceInfo.GetDisplaySize()
     consts = CleverTapConstants()
@@ -99,7 +102,7 @@ function CleverTapDeviceAppFields(deviceInfo as object, appInfo as object) as ob
     fields = {
         "Version": appInfo.GetVersion()
         "Build": appInfo.GetValue("build_version")
-        ' A number, not "0.1.0". This is what the dashboard shows as the SDK version of the
+        ' A number, not "1.0.0". This is what the dashboard shows as the SDK version of the
         ' profile.
         "SDK Version": CleverTapSdkRevision(consts.SDK_VERSION)
         "Model": CleverTapDeviceModel(deviceInfo)
@@ -109,8 +112,9 @@ function CleverTapDeviceAppFields(deviceInfo as object, appInfo as object) as ob
         "wdt": display.w
         "hgt": display.h
         "locale": deviceInfo.GetCurrentLocale()
-        ' We never let the server infer location from the request IP.
-        "useIP": false
+        ' Whether the server may work out where the viewer is from the address the request
+        ' came from. It is false unless the app turns network reporting on.
+        "useIP": reportNetworkInfo
     }
 
     ' The country is sent twice, which is what the mobile SDKs do. It is an app field here,
@@ -119,7 +123,28 @@ function CleverTapDeviceAppFields(deviceInfo as object, appInfo as object) as ob
     country = CleverTapCountryCode(deviceInfo)
     if country <> "" then fields[consts.COUNTRY_KEY] = country
 
+    if reportNetworkInfo then
+        networkFields = CleverTapDeviceNetworkFields(deviceInfo)
+        for each key in networkFields
+            fields[key] = networkFields[key]
+        end for
+    end if
+
     return fields
+end function
+
+' The network details, for an app that asked for them.
+'
+' Nothing here is sent unless the app calls enableDeviceNetworkInfoReporting(true). A viewer
+' did not ask to have their network described. An app that needs it has to ask for it, and
+' has to be able to say why.
+'
+' The mobile SDKs also report the mobile network the phone is on. A Roku device has no
+' mobile radio, so there is nothing of the kind to report here.
+function CleverTapDeviceNetworkFields(deviceInfo as object) as object
+    ' Roku answers "WiFiConnection", "WiredConnection", or "" when there is no connection.
+    ' A TV joined by cable reports false here. That is a real answer, not a missing one.
+    return { "wifi": (deviceInfo.GetConnectionType() = "WiFiConnection") }
 end function
 
 ' The country of this device as a two-letter ISO code, or "" when it is not known.
@@ -151,20 +176,25 @@ function CleverTapCountryCode(deviceInfo as object) as string
     return reported
 end function
 
-' The time zone the viewer has chosen, or "" when the device reports none.
+' The time zone the viewer has chosen, written the way the rest of the world writes it.
+' Returns "" when the device reports no zone. Returns "" when the zone is not a name Roku
+' documents.
 '
-' Roku has its own name for each zone and returns one of about 95 of them, for example
-' "Europe/United Kingdom" or "Asia/China". Many of those names are used by Roku alone. The
-' same two zones are named "Europe/London" and "Asia/Shanghai" in the list the mobile SDKs
-' send. Roku publishes no table that joins the two sets of names, so the name is sent as the
-' device gives it.
+' Roku uses its own names. The server cannot read them. CleverTapIanaTimeZone turns a Roku name
+' into the standard one. Read the comment at the top of CleverTapTimeZone.brs for the reason.
 '
-' TODO(verify): ask the backend team which names the "tz" profile field accepts, and whether
-' a name Roku alone uses stops a campaign from being timed to the viewer's own clock.
+' A name that cannot be turned into a standard one is reported and dropped. Sending it would
+' put a wrong time zone on the profile. No time zone at all is the better of the two.
 function CleverTapDeviceTimeZone(deviceInfo as object) as string
     zone = deviceInfo.GetTimeZone()
-    if zone = invalid then return ""
-    return zone
+    if zone = invalid or zone = "" then return ""
+
+    mapped = CleverTapIanaTimeZone(zone)
+    if mapped = "" then
+        CleverTapLogError("the device reports time zone '" + zone + "', which this SDK does not know. No time zone was sent.")
+        return ""
+    end if
+    return mapped
 end function
 
 ' True when the text is two letters, which is the shape of an ISO country code.

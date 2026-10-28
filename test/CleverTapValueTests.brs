@@ -84,4 +84,99 @@ function CleverTapValueTests(t as object)
 
     noProps = CleverTapBuildEvent("Watched", invalid, sessionMeta, 1700000000)
     t.eq(noProps.evtData, {}, "an event with no properties still carries an empty map")
+
+    ' --- a date that is not at the top ---
+    '
+    ' An app does not always write a date at the top of an event. It puts one inside a map
+    ' that describes a thing, or inside a line item of a purchase. A date found in one of
+    ' those places has to become the same thing it becomes at the top. Left alone, it would
+    ' reach the server as a map, and the server would store nothing a campaign can read.
+
+    nested = CleverTapEncodeValue("show", { "airedOn": { "date": 640310400 }, "title": "Bat" })
+    t.eq(nested, { "airedOn": "$D_640310400", "title": "Bat" }, "a date inside a map is converted")
+
+    inList = CleverTapEncodeValue("dates", [{ "date": 640310400 }, { "date": -152496000 }])
+    t.eq(inList, ["$D_640310400", "$D_-152496000"], "a date inside a list is converted")
+
+    ' The line items of a purchase are a list of maps. This is the shape an app is most
+    ' likely to write a date into after the top of the event.
+    charged = CleverTapBuildChargedEvent({ "Amount": 300 }, [{ "id": 1, "airedOn": { "date": 640310400 } }], sessionMeta, 1700000000)
+    t.eq(charged.evtData["Items"], [{ "id": 1, "airedOn": "$D_640310400" }], "a date inside a charged line item is converted")
+
+    ' A value that cannot be read is left out wherever it sits, not only at the top. The
+    ' report names the path, because "airedOn" on its own does not say which line item.
+    CleverTapLogSetConsoleOutput(false)
+    CleverTapLogClear()
+    badItem = CleverTapBuildChargedEvent({ "Amount": 300 }, [{ "airedOn": { "date": "17 April 1990" } }], sessionMeta, 1700000000)
+    t.eq(badItem.evtData["Items"], [{}], "an unreadable date is left out of its line item")
+    reported = CleverTapLogLines()
+    t.eq(reported.Count(), 1, "an unreadable date below the top is reported once")
+    t.isTrue(Instr(1, reported[0], "Items.airedOn") > 0, "the report names the path to the value")
+
+    ' --- how deep the search goes ---
+    '
+    ' Three maps of the app's own are opened. The map that marks the date is not one of
+    ' them, so a date written inside the third map is still found.
+    CleverTapLogClear()
+    atLimit = CleverTapEncodeValue("a", { "b": { "c": { "when": { "date": 640310400 } } } })
+    t.eq(atLimit, { "b": { "c": { "when": "$D_640310400" } } }, "a date three maps down is converted")
+    t.eq(CleverTapLogLines().Count(), 0, "nothing is reported at the limit")
+
+    ' One level further and the search stops. What the value holds itself is still sent.
+    ' What is nested inside it is left out, because looking inside is what stopped.
+    CleverTapLogClear()
+    tooDeep = CleverTapEncodeValue("a", { "b": { "c": { "d": { "keep": "me", "when": { "date": 640310400 } } } } })
+    t.eq(tooDeep, { "b": { "c": { "d": { "keep": "me" } } } }, "a value past the limit keeps what it holds itself")
+    deepReport = CleverTapLogLines()
+    t.eq(deepReport.Count(), 1, "stopping the search is reported once")
+    t.isTrue(Instr(1, deepReport[0], "a.b.c.d") > 0, "the report names where the search stopped")
+
+    ' A list counts as a level too. Without that, a list that holds itself would be followed
+    ' until the channel ran out of room to follow it.
+    ' The innermost list here sits at the limit. Its own text is kept and the list inside it
+    ' is left out, which is the same rule a map gets.
+    CleverTapLogClear()
+    t.eq(CleverTapEncodeValue("a", [[[["deep", ["deeper"]]]]]), [[[["deep"]]]], "a list past the limit keeps what it holds itself")
+    t.eq(CleverTapLogLines().Count(), 1, "that is reported once too")
+
+    ' --- a value that holds itself ---
+    '
+    ' This is why the copy above matters, and it is the whole reason the limit exists.
+    '
+    ' An app can write a map that holds itself by accident. The JSON writer refuses such a
+    ' value and answers with an empty string. That empty string would then be saved over the
+    ' whole queue, and every event waiting on the device would be gone.
+    '
+    ' The SDK copies the value, so what leaves here can always be written.
+    CleverTapLogClear()
+    holdsItself = {}
+    holdsItself["name"] = "loop"
+    holdsItself["self"] = holdsItself
+
+    t.isTrue(FormatJson(holdsItself) = "", "the writer refuses the value the app wrote")
+
+    safe = CleverTapEncodeValue("loop", holdsItself)
+    t.isTrue(FormatJson(safe) <> "", "the writer accepts the value the SDK made from it")
+    t.eq(safe["name"], "loop", "the values alongside it are kept")
+
+    ' The same for a list that holds itself.
+    CleverTapLogClear()
+    listHoldsItself = []
+    listHoldsItself.Push("first")
+    listHoldsItself.Push(listHoldsItself)
+    t.isTrue(FormatJson(listHoldsItself) = "", "the writer refuses a list that holds itself")
+    t.isTrue(FormatJson(CleverTapEncodeValue("loop", listHoldsItself)) <> "", "the SDK makes that list safe too")
+
+    ' --- what must not change ---
+    '
+    ' Looking inside lists and maps must leave every ordinary value alone. A multi-value
+    ' profile property is a list of text, and it travels through the same code.
+    CleverTapLogClear()
+    t.eq(CleverTapEncodeValue("favTeams", ["IND", "AUS"]), ["IND", "AUS"], "a list of text is unchanged")
+    t.eq(CleverTapEncodeValue("meta", { "a": 1, "b": "two" }), { "a": 1, "b": "two" }, "a map with no date in it is unchanged")
+    t.eq(CleverTapEncodeValue("counts", [1, 2, 3]), [1, 2, 3], "a list of numbers is unchanged")
+    t.eq(CleverTapEncodeValue("empty", []), [], "an empty list stays empty")
+    t.eq(CleverTapLogLines().Count(), 0, "none of that is reported")
+
+    CleverTapLogSetConsoleOutput(true)
 end function

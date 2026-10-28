@@ -216,6 +216,24 @@ function CleverTapQueue(storage as object) as object
         ' _tailJson when the queue has to be left alone.
         _trim: function(items as object, budget as integer, label as string) as string
             json = FormatJson(items)
+
+            ' An empty string means the writer refused the value. It is not the same as an
+            ' empty queue, which is written as "[]". Saving it would put an empty string over
+            ' a full queue and every entry waiting in it would be gone. Take out the entries
+            ' the writer cannot write, so the rest are still saved.
+            if json = "" and items.Count() > 0 then
+                m._dropUnwritable(items, label)
+                json = FormatJson(items)
+                ' Still refused with nothing left to blame. Save an empty queue rather than
+                ' an empty string, so what is read back on the next launch is a queue with
+                ' nothing in it instead of something that cannot be read at all. The entries
+                ' stay in memory and can still be uploaded in this run.
+                if json = "" then
+                    CleverTapLogError("the " + label + " queue cannot be written as JSON, so nothing was saved. Its entries are kept in memory and will be lost if the channel closes.")
+                    return "[]"
+                end if
+            end if
+
             if Len(json) <= budget then
                 ' The queue fits again. Allow the next log line if it fills up later.
                 m.dropNoted.Delete(label)
@@ -241,6 +259,32 @@ function CleverTapQueue(storage as object) as object
             CleverTapLogInfo("the " + label + " queue reached its " + budget.ToStr() + " character limit, so the oldest entries are now dropped to make room for new ones. " + items.Count().ToStr() + " are still queued. This is reported once per queue.")
             return json
         end function
+
+        ' Takes out the entries the JSON writer refuses. One such entry costs the whole
+        ' queue, because the writer is given the queue as one value and answers with an empty
+        ' string for all of it.
+        '
+        ' A value that holds itself is the usual cause. The SDK copies every value an app
+        ' gives it, so such a value should not get this far. This is here because the price
+        ' of missing one is every event the device has not sent yet.
+        '
+        ' The entries are removed from the array the caller passed. They leave memory as
+        ' well, so no later save meets them again.
+        _dropUnwritable: sub(items as object, label as string)
+            kept = []
+            for each entry in items
+                if FormatJson(entry) <> "" then kept.Push(entry)
+            end for
+
+            dropped = items.Count() - kept.Count()
+            if dropped = 0 then return
+
+            items.Clear()
+            for each entry in kept
+                items.Push(entry)
+            end for
+            CleverTapLogError(dropped.ToStr() + " " + label + " entries hold a value the SDK cannot write as JSON, so they were dropped. The other " + items.Count().ToStr() + " are still queued.")
+        end sub
 
         ' The JSON of the newest entries that fit in the budget. The array it is given is
         ' not changed, so every entry stays available for upload.

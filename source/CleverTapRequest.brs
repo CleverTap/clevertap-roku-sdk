@@ -9,7 +9,7 @@
 ' handshake result); ts is the current time in unix seconds.
 function CleverTapBuildUploadUrl(domain as string, accountId as string, epochSeconds as integer) as string
     consts = CleverTapConstants()
-    ' "t" carries the SDK version as one number, not as "0.1.0". Every CleverTap SDK sends
+    ' "t" carries the SDK version as one number, not as "1.0.0". Every CleverTap SDK sends
     ' it that way.
     revision = CleverTapSdkRevision(consts.SDK_VERSION)
     return "https://" + domain + consts.UPLOAD_PATH + "?os=" + consts.OS_NAME + "&t=" + revision.ToStr() + "&z=" + accountId + "&ts=" + epochSeconds.ToStr()

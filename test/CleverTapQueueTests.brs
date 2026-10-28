@@ -235,6 +235,37 @@ function CleverTapQueueBudgetTests(t as object)
     t.eq(room.spaceAvailable(), 489, "space goes down by the key and the value together")
     t.isFalse(room.write("big", CleverTapRepeat("x", 600)), "a write that does not fit is refused")
 
+    ' --- an entry the JSON writer refuses ---
+    '
+    ' The writer is handed the whole queue as one value. It answers with an empty string for
+    ' all of it when any part cannot be written, and a value that holds itself cannot be
+    ' written. An empty string is not an empty queue: an empty queue is written as "[]".
+    '
+    ' Saving that empty string would put it over everything the device has not sent yet. The
+    ' entry that cannot be written is taken out instead, so one mistake costs one event
+    ' rather than the whole queue.
+    CleverTapLogSetConsoleOutput(false)
+    CleverTapLogClear()
+
+    poisonStore = CleverTapFakeStorage()
+    qPoison = CleverTapQueue(poisonStore)
+    qPoison.enqueueEvent({ tag: "good1" })
+
+    bad = { tag: "bad" }
+    bad["self"] = bad
+    t.isTrue(FormatJson(bad) = "", "the writer refuses an entry that holds itself")
+
+    qPoison.enqueueEvent(bad)
+    qPoison.enqueueEvent({ tag: "good2" })
+
+    reloaded = CleverTapQueue(poisonStore)
+    reloaded.load()
+    survived = reloaded.nextBatch(49).items
+    t.eq(survived.Count(), 2, "the entries either side of the bad one were saved")
+    t.eq([survived[0].tag, survived[1].tag], ["good1", "good2"], "and they are the right ones, in order")
+
+    t.isTrue(Instr(1, CleverTapLogText(), "cannot write as JSON") > 0, "the SDK says an entry was dropped")
+
     CleverTapLogSetConsoleOutput(true)
 end function
 

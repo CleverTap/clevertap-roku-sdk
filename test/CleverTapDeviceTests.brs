@@ -34,7 +34,7 @@ function CleverTapDeviceTests(t as object)
     t.eq(CleverTapSdkRevision("7.9.0"), 70900, "7.9.0 becomes 70900")
     t.eq(CleverTapSdkRevision("7.8.2"), 70802, "7.8.2 becomes 70802")
     t.eq(CleverTapSdkRevision("7.5.1"), 70501, "7.5.1 becomes 70501")
-    t.eq(CleverTapSdkRevision("0.1.0"), 100, "0.1.0 becomes 100")
+    t.eq(CleverTapSdkRevision("1.0.0"), 10000, "the first Roku release becomes 10000")
     t.eq(CleverTapSdkRevision("10.11.12"), 101112, "every part keeps its own place")
     t.eq(CleverTapSdkRevision("1.2"), 10200, "a missing patch part counts as zero")
 
@@ -75,15 +75,13 @@ function CleverTapDeviceTests(t as object)
     t.eq(CleverTapCountryCode(CTFakeDeviceInfoWithCountryCode("U1")), "", "a value with a digit in it is not sent")
     t.eq(CleverTapCountryCode(CTFakeDeviceInfoWithCountryCode("USA")), "", "a three-letter value is not sent")
 
-    ' The time zone is sent as the device names it. Roku uses its own names, and no table
-    ' joins them to the names other platforms use.
-    t.eq(CleverTapDeviceTimeZone(CTFakeDeviceInfo()), "US/Pacific", "the time zone comes from the device")
-    t.eq(CleverTapDeviceTimeZone(CTFakeDeviceInfoWithTimeZone("Europe/United Kingdom")), "Europe/United Kingdom", "a name only Roku uses is still sent")
-    t.eq(CleverTapDeviceTimeZone(CTFakeDeviceInfoWithTimeZone("")), "", "a device that reports no time zone gives nothing")
+    ' The time zone comes from the device and is turned into the standard name. Roku uses its
+    ' own names. CleverTapTimeZoneTests covers the table that joins the two.
+    t.eq(CleverTapDeviceTimeZone(CTFakeDeviceInfo()), "America/Los_Angeles", "the time zone comes from the device")
 
     ' "tz" is a system key, so it is sent as it is spelled and is not checked as a custom key.
-    tzProfile = CleverTapBuildProfile({ "tz": "US/Pacific" }, { s: 1, pg: 1, lsl: 0, f: true }, 1700000000)
-    t.eq(tzProfile.profile["tz"], "US/Pacific", "the time zone rides in the profile")
+    tzProfile = CleverTapBuildProfile({ "tz": "America/Los_Angeles" }, { s: 1, pg: 1, lsl: 0, f: true }, 1700000000)
+    t.eq(tzProfile.profile["tz"], "America/Los_Angeles", "the time zone rides in the profile")
 
     ' Credentials: values in the init() config win over the manifest.
     manifestInfo = CTFakeManifestAppInfo({

@@ -34,7 +34,14 @@ function init(config = invalid as dynamic) as void
         m.storage = CleverTapStorage("clevertap_" + m.config.accountId)
         m.deviceId = CleverTapDeviceGetId(m.storage)
         deviceInfo = CreateObject("roDeviceInfo")
-        m.appFields = CleverTapDeviceAppFields(deviceInfo, appInfo)
+        ' Read before the app fields are built. "useIP" is one of those fields.
+        m.reportNetworkInfo = (m.storage.read(CleverTapConstants().NETWORK_INFO_KEY) = "1")
+        m.appFields = CleverTapDeviceAppFields(deviceInfo, appInfo, m.reportNetworkInfo)
+        ' Kept so the app fields can be built again if the app changes the setting later.
+        m.appInfo = appInfo
+        ' What the viewer chose last time this device id was used. A new device id has made
+        ' no choice, so it starts opted in.
+        m.privacy = CleverTapPrivacyDecode(m.storage.read(CleverTapPrivacyStorageKey(m.deviceId)))
         ' The country and the time zone are profile attributes, not app fields, so they are
         ' read once here and sent by ctPushDeviceProfile below.
         m.countryCode = CleverTapCountryCode(deviceInfo)
@@ -82,6 +89,8 @@ function init(config = invalid as dynamic) as void
         m.started = true
         CleverTapLogInfo("initialized, account " + m.config.accountId + ", sdk " + CleverTapConstants().SDK_VERSION)
         CleverTapLogDebug("device id " + m.deviceId)
+        ' Only worth a line when the viewer opted out. The usual state needs no announcing.
+        if m.privacy.optedOut then CleverTapLogInfo("this viewer is " + CleverTapPrivacyDescribe(m.privacy))
         ' Fire App Launched for this launch (the mobile SDKs do the same on cold start), then
         ' send it alongside anything left over from a previous run (e.g. events queued offline).
         ctEnsureSession(ctNow())
@@ -112,6 +121,8 @@ function recordEvent(args as object) as void
         return
     end if
 
+    if not ctPrivacyAllows("event", check.value) then return
+
     now = ctNow()
     ctEnsureSession(now)
     m.queue.enqueueEvent(CleverTapBuildEvent(check.value, props, m.session.meta(), now))
@@ -124,6 +135,8 @@ end function
 function recordChargedEvent(args as object) as void
     if not m.started then return
     if args = invalid or args.Count() = 0 then return
+
+    if not ctPrivacyAllows("event", CleverTapConstants().CHARGED_EVENT_NAME) then return
 
     details = args[0]
     items = invalid
@@ -147,6 +160,7 @@ function profilePush(args as object) as void
 
     fields = args[0]
     if fields = invalid then return
+    if not ctPrivacyAllows("profile", "") then return
 
     now = ctNow()
     ctEnsureSession(now)
@@ -185,14 +199,26 @@ function onUserLogin(args as object) as void
         m.deviceId = decision.deviceId
         CleverTapDeviceSetId(m.storage, decision.deviceId)
         CleverTapLogInfo("device id is now " + decision.deviceId)
+        ' The choice belongs to the viewer, not to the device. This is a different viewer, so
+        ' their own choice is loaded. A viewer who has never chosen starts opted in. A viewer
+        ' who opted out before is still opted out.
+        m.privacy = CleverTapPrivacyDecode(m.storage.read(CleverTapPrivacyStorageKey(m.deviceId)))
+        if m.privacy.optedOut then CleverTapLogInfo("this viewer is " + CleverTapPrivacyDescribe(m.privacy))
     end if
 
     ' Remember the identity -> id mapping and that the device is now identified.
+    '
+    ' This happens even for a viewer who opted out. The mapping never leaves the device. It
+    ' is what lets this viewer keep the same device id the next time they sign in. Skipping
+    ' it would build a new id on every sign-in, and the opt-out kept against the old id
+    ' would stop applying.
     if decision.cacheKey <> invalid then
         cache[decision.cacheKey] = decision.deviceId
         ctSaveIdentityCache(cache)
         m.storage.write(m.identifiedKey, "1")
     end if
+
+    if not ctPrivacyAllows("profile", "") then return
 
     ' Push the supplied attributes under the (possibly new) id. On a switch the session was
     ' just reset, so ctEnsureSession starts a fresh one and fires App Launched into the now
@@ -325,6 +351,8 @@ sub ctEnqueueProfileCommand(key as dynamic, command as string, value as dynamic)
         return
     end if
 
+    if not ctPrivacyAllows("profile", "") then return
+
     now = ctNow()
     ctEnsureSession(now)
     item = CleverTapBuildProfileCommand(check.value, command, value, m.session.meta(), now)
@@ -335,6 +363,114 @@ sub ctEnqueueProfileCommand(key as dynamic, command as string, value as dynamic)
     CleverTapLogDebug("profile change is " + FormatJson(item.profile))
     ctMaybeFlush()
 end sub
+
+' --- privacy ---
+
+' Stops or resumes reporting for the viewer on this device.
+'
+' args is [optedOut] or [optedOut, allowSystemEvents].
+'
+' setOptOut([true]) stops everything. Nothing the app records is sent, and the SDK sends
+' nothing of its own either.
+'
+' setOptOut([true, true]) stops only what the app records. The SDK still reports that a
+' channel opened, so sessions on the server still close properly. Use this when the viewer
+' asked not to be tracked but the app still needs usage figures that name nobody.
+'
+' setOptOut([false]) resumes everything.
+'
+' The choice is kept on the device against the current device id. It survives the channel
+' closing. An app does not have to call this on every launch. Calling it on every launch
+' with the viewer's stored answer is still good practice, because the app is the place that
+' answer really lives.
+function setOptOut(args as object) as void
+    if not m.started then return
+    if args = invalid or args.Count() = 0 then return
+    if GetInterface(args[0], "ifBoolean") = invalid then
+        CleverTapLogError("setOptOut needs true or false")
+        return
+    end if
+
+    optedOut = args[0]
+    ' One argument means a full opt-out, matching the mobile SDKs.
+    allowSystemEvents = not optedOut
+    if args.Count() > 1 and GetInterface(args[1], "ifBoolean") <> invalid then
+        allowSystemEvents = args[1]
+    end if
+
+    state = CleverTapPrivacyResolve(optedOut, allowSystemEvents)
+
+    ' The server is told by a profile change, and that change has to get past the same gate
+    ' it is setting. So the order differs between the two directions.
+    '
+    ' Opting out: send the change first, then close the gate. Closing it first would drop
+    ' the very message that reports the opt-out.
+    '
+    ' Opting in: open the gate first, then send the change.
+    if state.optedOut then
+        ctEnqueuePrivacyProfile(state)
+        m.privacy = state
+    else
+        m.privacy = state
+        ctEnqueuePrivacyProfile(state)
+    end if
+
+    m.storage.write(CleverTapPrivacyStorageKey(m.deviceId), CleverTapPrivacyEncode(state))
+    CleverTapLogInfo("this viewer is " + CleverTapPrivacyDescribe(state))
+end function
+
+' Queues the profile change that tells the server about the choice. Written without the
+' privacy gate on purpose: setOptOut has already decided this one may go.
+sub ctEnqueuePrivacyProfile(state as object)
+    now = ctNow()
+    ctEnsureSession(now)
+    m.queue.enqueueProfile(CleverTapBuildProfile(CleverTapPrivacyProfileFields(state), m.session.meta(), now, ctDeviceCountryCode()))
+    ctMaybeFlush()
+end sub
+
+' Turns reporting of network details on or off. args is [enabled].
+'
+' This is off unless the app turns it on. While it is off the SDK reports nothing about the
+' connection, and it tells the server not to work out where the viewer is from the address
+' the request came from.
+'
+' Turning it on adds whether the device is on WiFi, and lets the server read the location
+' from the request address. A Roku device has no mobile radio, so there is no mobile network
+' to report.
+'
+' The setting is kept on the device and applies to every viewer on it.
+function enableDeviceNetworkInfoReporting(args as object) as void
+    if not m.started then return
+    if args = invalid or args.Count() = 0 then return
+    if GetInterface(args[0], "ifBoolean") = invalid then
+        CleverTapLogError("enableDeviceNetworkInfoReporting needs true or false")
+        return
+    end if
+
+    m.reportNetworkInfo = args[0]
+    m.storage.write(CleverTapConstants().NETWORK_INFO_KEY, CleverTapPrivacyFlagChar(m.reportNetworkInfo))
+
+    ' The device fields were built once at init. They carry the setting, so they are built
+    ' again here. Without this the change would never reach the server.
+    m.appFields = CleverTapDeviceAppFields(CreateObject("roDeviceInfo"), m.appInfo, m.reportNetworkInfo)
+
+    if m.reportNetworkInfo then
+        CleverTapLogInfo("network details are now reported")
+    else
+        CleverTapLogInfo("network details are no longer reported")
+    end if
+end function
+
+' Checks one item against the viewer's choice. Logs the reason when it says no, because an
+' item that quietly never arrives is hard to explain.
+function ctPrivacyAllows(kind as string, name as string) as boolean
+    if CleverTapPrivacyAllows(kind, name, m.privacy) then return true
+
+    what = "profile change"
+    if kind = "event" then what = "event '" + name + "'"
+    CleverTapLogDebug(what + " was not recorded, because this viewer is " + CleverTapPrivacyDescribe(m.privacy))
+    return false
+end function
 
 ' Returns the current CleverTap device id (GUID), or "" if the SDK isn't configured yet. This
 ' is the same id CleverTap shows on the profile, so it's handy for matching a run to the
@@ -358,9 +494,17 @@ end sub
 ' mirroring the mobile SDKs (these also ride the batch meta header). Built directly rather
 ' than through recordEvent so it bypasses the reserved-name check.
 sub ctRecordAppLaunched(now as integer)
-    m.queue.enqueueEvent(CleverTapBuildEvent(CleverTapConstants().APP_LAUNCHED_EVENT_NAME, m.appFields, m.session.meta(), now))
+    name = CleverTapConstants().APP_LAUNCHED_EVENT_NAME
+    ' A full opt-out stops this one too. Marking it as recorded keeps the SDK from trying
+    ' again for every event that follows.
+    if not ctPrivacyAllows("event", name) then
+        m.appLaunchRecorded = true
+        return
+    end if
+
+    m.queue.enqueueEvent(CleverTapBuildEvent(name, m.appFields, m.session.meta(), now))
     m.appLaunchRecorded = true
-    CleverTapLogInfo("event recorded: " + CleverTapConstants().APP_LAUNCHED_EVENT_NAME)
+    CleverTapLogInfo("event recorded: " + name)
 end sub
 
 function ctLoadIdentityCache() as object
@@ -452,6 +596,15 @@ sub ctFlush()
     stamps = m.meta.stamps()
     meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession(), m.arp)
     payload = FormatJson(CleverTapBuildBatch(meta, batchItems))
+
+    ' An empty string means the writer refused the batch. Sending it would post an empty body
+    ' that the server cannot read. The batch stays queued, and the next save takes out the
+    ' entry that cannot be written, so the following attempt has a batch that can be sent.
+    if payload = "" then
+        CleverTapLogError("this batch cannot be written as JSON, so it was not sent. It stays queued.")
+        return
+    end if
+
     ' Kept so the line logged when the server replies can name the same items again.
     m.inFlightDescription = CleverTapDescribeBatch(batchItems)
     ' The highest sequence number this batch took from each queue. Kept until the server
@@ -597,6 +750,8 @@ end sub
 ' This runs once per launch, at the end of init. A viewer who changes one of these settings
 ' is followed, because the new value is sent the next time the channel opens.
 sub ctPushDeviceProfile()
+    if not ctPrivacyAllows("profile", "") then return
+
     consts = CleverTapConstants()
     fields = {}
     if m.countryCode <> "" then fields[consts.COUNTRY_KEY] = m.countryCode
