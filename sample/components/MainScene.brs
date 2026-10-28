@@ -52,7 +52,7 @@ end sub
 ' bottom to watch one list property being built up and then cut back down:
 ' [IND, AUS] -> [IND, AUS, ENG] -> [IND, AUS, ENG, NZ, SA] -> [IND, ENG, NZ, SA] -> [IND, ENG].
 '
-' The last row is a diagnostic. It is not part of that session order.
+' The last two rows are diagnostics. They are not part of that session order.
 function ctBuildMenu() as object
     root = CreateObject("roSGNode", "ContentNode")
     labels = [
@@ -72,7 +72,8 @@ function ctBuildMenu() as object
         "Remove multi-values (NZ, SA)",
         "Increment points by 50",
         "Decrement points by 20",
-        "Fill queue past the cap (40 events)"
+        "Fill queue past the cap (40 events)",
+        "Push two dates of birth (1990 and 1965)"
     ]
     for each label in labels
         root.CreateChild("ContentNode").title = label
@@ -123,6 +124,8 @@ sub ctOnItemSelected(event as object)
         m.status.text = "3 events fired, expect one request"
     else if index = 16 then
         ctFillQueuePastCap(ct)
+    else if index = 17 then
+        ctPushDatesOfBirth(ct)
     else
         ' Rows 8 to 15 are the profile commands. They sit in their own sub to keep this one
         ' short.
@@ -164,6 +167,29 @@ sub ctFillQueuePastCap(ct as object)
         ct.callfunc("recordEvent", ["Queue filler", { "id": i, "a": pad, "b": pad, "c": pad, "d": pad }])
     end for
     m.status.text = "40 padded events fired, check the log for the queue limit line"
+end sub
+
+' Sends two dates of birth. A date is written as a map with one key, "date". An roDateTime
+' cannot be used here: it does not survive the callfunc into the SDK node, and the attribute
+' would arrive empty.
+'
+' Both forms of the map are shown, because an app may hold either one.
+'
+' "DOB" is 17 April 1990, written as ISO 8601 text. It is after 1 January 1970, so its
+' second count is positive. The payload should show "DOB":"$D_640310400".
+'
+' "dobBefore1970" is 3 March 1965, written as a second count. Dates before 1 January 1970
+' are negative, and many real birth dates are in that range. The payload should show
+' "dobBefore1970":"$D_-152496000".
+'
+' A custom key is used for the second one so both arrive in the same update and can be
+' compared side by side.
+sub ctPushDatesOfBirth(ct as object)
+    ct.callfunc("profilePush", [{
+        "DOB": { "date": "1990-04-17T00:00:00Z" }
+        "dobBefore1970": { "date": -152496000 }
+    }])
+    m.status.text = "two dates of birth sent, check the payload for $D_640310400 and $D_-152496000"
 end sub
 
 ' Fires one profile command. profilePush replaces the value of a key; these change one part

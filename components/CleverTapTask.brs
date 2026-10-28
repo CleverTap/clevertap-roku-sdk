@@ -57,6 +57,7 @@ sub ctRunUpload()
         spikyDomain: parsed.spikyDomain
         mute: parsed.mute
         serverGuid: CleverTapExtractServerGuid(post.body)
+        arp: CleverTapExtractArp(post.body)
     }
 end sub
 
@@ -122,6 +123,7 @@ function ctFailure() as object
         spikyDomain: invalid
         mute: false
         serverGuid: invalid
+        arp: invalid
     }
 end function
 

@@ -19,4 +19,10 @@
     <!-- CleverTapRequest reports a key spelled in the wrong letter case, and that check
          lives in CleverTapValidator. -->
     <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
+    <!-- CleverTapRequest converts every event property, and that conversion lives in
+         CleverTapValue. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapValue.brs" />
+    <!-- The reply carries the block of values the server asks the SDK to repeat, and reading
+         it out lives in CleverTapArp. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapArp.brs" />
 </component>

@@ -107,6 +107,10 @@ end function
 ' The queue drops its oldest item once it is full. That drop happens while an upload may be
 ' running, so these checks cover what the upload removes afterwards.
 function CleverTapQueueCapTests(t as object)
+    ' Filling the queue on purpose makes the SDK report the drop. The console copy is
+    ' switched off so that report stays out of the test output.
+    CleverTapLogSetConsoleOutput(false)
+
     ' A budget wide enough for three of these entries and no more.
     q = CleverTapQueue(CleverTapFakeStorage())
     q.maxBytes = Len(FormatJson([{ seq: 1, item: { tag: "e1" } }])) * 3
@@ -137,11 +141,17 @@ function CleverTapQueueCapTests(t as object)
     q4.load()
     q4.enqueueEvent({ tag: "e2" })
     t.eq(q4.nextBatch(49).eventSeq, 3, "a reloaded queue carries on from the saved numbers")
+
+    CleverTapLogSetConsoleOutput(true)
 end function
 
 ' The registry is small and the channel that hosts the SDK shares it. These checks cover
 ' what happens as the room runs out.
 function CleverTapQueueBudgetTests(t as object)
+    ' Running the storage out of room on purpose makes the SDK report it. The console copy
+    ' is switched off so those reports stay out of the test output.
+    CleverTapLogSetConsoleOutput(false)
+
     ' The limit counts characters, not entries. A queue of small entries therefore holds
     ' more of them than a queue of large ones.
     qSmall = CleverTapQueue(CleverTapFakeStorage())
@@ -224,6 +234,8 @@ function CleverTapQueueBudgetTests(t as object)
     room.write("k", "0123456789")
     t.eq(room.spaceAvailable(), 489, "space goes down by the key and the value together")
     t.isFalse(room.write("big", CleverTapRepeat("x", 600)), "a write that does not fit is refused")
+
+    CleverTapLogSetConsoleOutput(true)
 end function
 
 ' Returns text repeated until it is at least count characters long.

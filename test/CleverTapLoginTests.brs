@@ -5,6 +5,16 @@ function CleverTapLoginTests(t as object)
     t.eq(CleverTapIdentityKeyValue({ Phone: 555 }).value, "555", "non-string identity value is stringified")
     t.eq(CleverTapIdentityKeyValue({ Name: "Sam" }), invalid, "no identity field returns invalid")
 
+    ' An identity that cannot become a string is skipped instead of stopping the channel.
+    ' The SDK reports each one it skips, so the console copy is switched off to keep those
+    ' reports out of the test output.
+    CleverTapLogSetConsoleOutput(false)
+    t.eq(CleverTapIdentityKeyValue({ Identity: ["u1", "u2"] }), invalid, "array identity is ignored")
+    t.eq(CleverTapIdentityKeyValue({ Identity: { id: "u1" } }), invalid, "associative array identity is ignored")
+    t.eq(CleverTapIdentityKeyValue({ Identity: ["u1"], Email: "a@x.com" }).key, "Email", "a bad identity falls through to the next field")
+    t.eq(CleverTapIdentityKeyValue({ Identity: "" }), invalid, "empty identity is ignored")
+    CleverTapLogSetConsoleOutput(true)
+
     ' No identifier: update the current profile, no switch.
     d0 = CleverTapResolveLogin({ Name: "Sam" }, "guid-current", true, {}, "guid-new")
     t.eq(d0.action, "profileOnly", "no identifier means profile-only")

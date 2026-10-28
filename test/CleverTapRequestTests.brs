@@ -1,9 +1,13 @@
 function CleverTapRequestTests(t as object)
     session = { s: 1700000000, pg: 1, lsl: 0, f: true }
 
-    ' Upload URL carries os/version/account/timestamp as query params.
+    ' Upload URL carries os/version/account/timestamp as query params. "t" is the version as
+    ' one number, never the dotted form, so it is built from the same constant here. A
+    ' hardcoded number would have to be edited on every release.
+    revision = CleverTapSdkRevision(CleverTapConstants().SDK_VERSION).ToStr()
     url = CleverTapBuildUploadUrl("in1.clevertap-prod.com", "ACC-123", 1700000000)
-    t.eq(url, "https://in1.clevertap-prod.com/a1?os=Roku&t=0.1.0&z=ACC-123&ts=1700000000", "upload url is built correctly")
+    t.eq(url, "https://in1.clevertap-prod.com/a1?os=Roku&t=" + revision + "&z=ACC-123&ts=1700000000", "upload url is built correctly")
+    t.eq(Instr(1, url, CleverTapConstants().SDK_VERSION), 0, "the dotted version never reaches the url")
 
     ' Meta header matches the expected shape exactly. Timestamps and frs are passed through.
     af = { "Make": "Roku", "OS": "Roku" }

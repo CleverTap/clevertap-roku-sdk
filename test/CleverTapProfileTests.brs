@@ -18,6 +18,12 @@ function CleverTapProfileTests(t as object)
     t.isTrue(CleverTapIsSystemProfileKey("Email"), "Email is a system key")
     t.isFalse(CleverTapIsSystemProfileKey("favTeam"), "favTeam is a custom key")
 
+    ' The same conversion happens on a system key and on a custom key.
+    dated = CleverTapBuildProfile({ "DOB": { "date": 640656000 }, "joined": { "date": 640656000 }, "Name": "Sam" }, sessionMeta, 1700000000)
+    t.eq(dated.profile["DOB"], "$D_640656000", "DOB is sent as a date")
+    t.eq(dated.profile["joined"], "$D_640656000", "a custom date key is sent as a date")
+    t.eq(dated.profile["Name"], "Sam", "other values are untouched")
+
     ' An invalid custom key is dropped; the rest of the update survives. The SDK logs an
     ' error when it drops one, so the console copy is switched off to keep that line out of
     ' the test output. The line itself is checked below.
@@ -31,7 +37,68 @@ function CleverTapProfileTests(t as object)
     t.eq(dropped.Count(), 1, "dropping a key is reported once")
     t.isTrue(Instr(1, dropped[0], "Property key is empty") > 0, "the report says why the key was dropped")
 
+    CleverTapPhoneTests(t)
     CleverTapProfileCommandTests(t)
+end function
+
+' Covers the phone number check. It only writes to the log. The number is always sent.
+function CleverTapPhoneTests(t as object)
+    sessionMeta = { s: 1700000000, pg: 1, lsl: 0, f: true }
+
+    ' Every case below is driven through CleverTapBuildProfile, because the point of the
+    ' check is what reaches the wire. The console copy is switched off so the reports stay
+    ' out of the test output.
+    CleverTapLogSetConsoleOutput(false)
+
+    ' The device knows its country, so a number without a "+" is fine. The server completes
+    ' it from the country of the device.
+    CleverTapLogClear()
+    known = CleverTapBuildProfile({ "Phone": "4155550123" }, sessionMeta, 1700000000, "US")
+    t.eq(CleverTapLogLines().Count(), 0, "a bare number is not reported when the device knows its country")
+    t.eq(known.profile["Phone"], "4155550123", "the number is sent as given")
+
+    ' The device reports no country. The number carries its own, so there is nothing to
+    ' report.
+    CleverTapLogClear()
+    withPlus = CleverTapBuildProfile({ "Phone": "+14155550123" }, sessionMeta, 1700000000, "")
+    t.eq(CleverTapLogLines().Count(), 0, "a number with a country code is not reported")
+    t.eq(withPlus.profile["Phone"], "+14155550123", "the leading plus is kept")
+
+    ' Spaces around the number do not hide the "+".
+    CleverTapLogClear()
+    CleverTapBuildProfile({ "Phone": "  +14155550123  " }, sessionMeta, 1700000000, "")
+    t.eq(CleverTapLogLines().Count(), 0, "spaces around the number do not hide the country code")
+
+    ' Neither side carries a country. This is the case the check exists for.
+    CleverTapLogClear()
+    noCountry = CleverTapBuildProfile({ "Phone": "4155550123" }, sessionMeta, 1700000000, "")
+    reported = CleverTapLogLines()
+    t.eq(reported.Count(), 1, "a bare number on a device with no country is reported once")
+    t.isTrue(Instr(1, reported[0], "+14155550123") > 0, "the report shows how to write the number")
+    t.eq(noCountry.profile["Phone"], "4155550123", "the number is still sent after a report")
+
+    ' A number written without quotes is reported whatever the device knows, because it has
+    ' already lost a leading "+" by the time the SDK sees it.
+    CleverTapLogClear()
+    asNumber = CleverTapBuildProfile({ "Phone": 5550123 }, sessionMeta, 1700000000, "US")
+    numberReported = CleverTapLogLines()
+    t.eq(numberReported.Count(), 1, "a phone number that is not text is reported")
+    t.isTrue(Instr(1, numberReported[0], "must be text") > 0, "the report says the number has to be text")
+    t.eq(asNumber.profile["Phone"], 5550123, "the value is still sent as given")
+
+    ' "phone" in the wrong letter case still gets the check. It is reported twice: once for
+    ' the spelling, once for the number.
+    CleverTapLogClear()
+    miscased = CleverTapBuildProfile({ "phone": "4155550123" }, sessionMeta, 1700000000, "")
+    t.eq(CleverTapLogLines().Count(), 2, "a miscased phone key is reported for its spelling and for its number")
+    t.eq(miscased.profile["phone"], "4155550123", "the miscased key is still sent")
+
+    ' No other key is checked, even one whose value looks like a phone number.
+    CleverTapLogClear()
+    CleverTapBuildProfile({ "altNumber": "4155550123" }, sessionMeta, 1700000000, "")
+    t.eq(CleverTapLogLines().Count(), 0, "only the phone key is checked")
+
+    CleverTapLogSetConsoleOutput(true)
 end function
 
 ' Covers the profile commands: the item each one builds, and the checks that stop a bad one

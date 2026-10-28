@@ -10,10 +10,16 @@
         <Rectangle id="accent" color="0xEF4444FF" translation="[80, 178]" width="1120" height="4" />
         <Label id="title" text="Roku analytics sample" translation="[80, 196]" />
         <!-- The menu holds more rows than fit on screen, so numRows caps what is drawn and
-             the list scrolls. Eight rows at 46px end at y=608, which leaves the status label
-             at y=620 clear. -->
-        <LabelList id="menu" translation="[80, 240]" itemSize="[620, 46]" numRows="8" />
-        <Label id="status" text="Select a call and press OK - watch the debug console" translation="[80, 620]" />
+             the list scrolls. The scene is 1920x1080. Twelve rows at 46px start at y=240 and
+             end at y=792. The status label sits at y=856, so a row that is drawn part way
+             past the bottom of the list still cannot reach it.
+             A row is 1760 wide: the list starts at x=80, and the same margin is left on the
+             right. A row that is too narrow for its text scrolls the text sideways, which is
+             hard to read. The longest row here fits in this width. -->
+        <LabelList id="menu" translation="[80, 240]" itemSize="[1760, 46]" numRows="12" />
+        <!-- The status line grows long: it ends with the device id, and some rows describe
+             what they sent. It is given a width and wraps, so it stays on screen. -->
+        <Label id="status" text="Select a call and press OK - watch the debug console" translation="[80, 856]" width="1760" height="120" wrap="true" />
     </children>
     <script type="text/brightscript" uri="MainScene.brs" />
 </component>

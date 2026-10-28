@@ -9,6 +9,28 @@ function CleverTapConstants() as object
         ' Reported as the "os" query param and inside the app-fields block.
         OS_NAME: "Roku"
 
+        ' What roDeviceInfo.GetCountryCode() returns when it does not know the country. Roku
+        ' calls it "Rest of World". It is not a country, so we do not send it.
+        UNKNOWN_COUNTRY_CODE: "OT"
+
+        ' Some Roku accounts are opened through a partner rather than through the Roku store.
+        ' GetCountryCode() then names the partner instead of the country. The names are
+        ' listed in Roku's documentation for ifDeviceInfo. Each one belongs to one country,
+        ' so each is read as that country.
+        '
+        ' The key is the name in lower case. The name is lowered before it is looked up here,
+        ' because Roku writes these in several letter cases.
+        PARTNER_COUNTRY_CODES: {
+            "econet": "ZW"
+            "globe": "PH"
+            "pldt": "PH"
+            "skyde": "DE"
+            "skyie": "IE"
+            "skyit": "IT"
+            "skyuk": "GB"
+            "telstra": "AU"
+        }
+
         ' Base domain for the whole platform. A region turns into "{region}.{API_DOMAIN}".
         API_DOMAIN: "clevertap-prod.com"
 
@@ -64,7 +86,41 @@ function CleverTapConstants() as object
         IDENTITY_KEYS: ["Identity", "Email", "Phone"]
 
         ' Profile keys the server treats as known system fields; everything else is custom.
-        SYSTEM_PROFILE_KEYS: ["Name", "Email", "Phone", "Age", "Gender", "DOB", "Birthday", "Education", "Married", "Employed"]
+        SYSTEM_PROFILE_KEYS: ["Name", "Email", "Phone", "Age", "Gender", "DOB", "Birthday", "Education", "Married", "Employed", "tz", "cc"]
+
+        ' The profile key that holds the time zone. The SDK sets it from the device, once per
+        ' launch. The dashboard shows it as "Timezone".
+        TIMEZONE_KEY: "tz"
+
+        ' The profile key that holds the country. The SDK sets it from the device, once per
+        ' launch.
+        COUNTRY_KEY: "cc"
+
+        ' The block of extra values the server sends back and the SDK repeats in the header
+        ' of every later request. See CleverTapArp.
+        ARP_KEY: "arp"
+
+        ' The name inside that block which lists the events the dashboard has switched off.
+        ' It is held in memory for the run and is not saved.
+        ARP_DISCARDED_EVENTS_KEY: "d_e"
+
+        ' The value the server gives a name it is retiring. The name is then dropped rather
+        ' than repeated.
+        ARP_PURGE_VALUE: -1
+
+        ' The profile key that holds a phone number. It gets a check of its own, because a
+        ' phone number the server cannot dial is easy to send and hard to notice.
+        PHONE_KEY: "Phone"
+
+        ' Marks a value as a date on the wire. A date is sent as this prefix followed by the
+        ' number of seconds from 1 January 1970, for example "$D_1700000000". The server
+        ' reads a plain number as a number, so the prefix is what makes it a date.
+        DATE_PREFIX: "$D_"
+
+        ' The key an app writes a date under: { "DOB": { "date": "1990-04-17T00:00:00Z" } }.
+        ' A date cannot be passed as an roDateTime, because an roDateTime does not survive
+        ' the callfunc into the SDK node. A map does.
+        DATE_MARKER_KEY: "date"
 
         ' Charged event keys the server gives a special meaning to. The SDK sets "Items"
         ' itself. The app supplies "Amount".
@@ -95,4 +151,25 @@ function CleverTapConstants() as object
         ' Most values one multi-value property may hold. Values past this limit are dropped.
         MAX_MULTI_VALUE_COUNT: 100
     }
+end function
+
+' Turns a version like "1.2.3" into the single number the server reads, here 10203.
+'
+' The server wants one number, not three parts. Every CleverTap SDK sends it the same way.
+' The major part is multiplied by 10000. The minor part is multiplied by 100. The patch part
+' is added as it is. So "7.9.0" becomes 70900, and "7.8.2" becomes 70802. Each part has to
+' stay below 100, or it would run into the part above it.
+'
+' A missing part counts as zero, so "1.2" becomes 10200.
+function CleverTapSdkRevision(version as string) as integer
+    parts = version.Split(".")
+
+    major = 0
+    minor = 0
+    patch = 0
+    if parts.Count() > 0 then major = parts[0].ToInt()
+    if parts.Count() > 1 then minor = parts[1].ToInt()
+    if parts.Count() > 2 then patch = parts[2].ToInt()
+
+    return major * 10000 + minor * 100 + patch
 end function

@@ -47,6 +47,37 @@ sub CleverTapWarnMiscasedKey(key as string, knownKeys as object, label as string
     CleverTapLogError(label + " '" + key + "' is sent as a custom property. The server reads it as '" + expected + "' only when it is spelled that way. Write the key in quotes: { """ + expected + """: ... }")
 end sub
 
+' Reports a phone number the server may not be able to use.
+'
+' The number is always sent, whatever this finds. Only the app knows what it meant by the
+' value, so the SDK neither changes it nor drops it. The report is there to be read while
+' integrating.
+'
+' Two things are checked.
+'
+' A phone number has to be text. A number written without quotes loses a leading "+" and a
+' leading zero, and both change which number it is.
+'
+' A phone number also needs a country code to be dialled. The number can carry its own,
+' written as a leading "+", as in "+14155550123". When it does not, the server falls back
+' to the country of the device. Some Roku accounts do not report a country. A number
+' without a "+" is incomplete on such a device, and the server has nothing to complete it
+' with. That is the case worth reporting.
+'
+' value is the phone number as the app gave it. deviceCountryCode is the two-letter country
+' of the device, or "" when the device does not report one.
+sub CleverTapWarnPhoneNumber(value as dynamic, deviceCountryCode as string)
+    if value = invalid or GetInterface(value, "ifString") = invalid then
+        CleverTapLogError("Phone must be text. A number loses a leading '+' and a leading zero. Write it in quotes: { ""Phone"": ""+14155550123"" }")
+        return
+    end if
+
+    if deviceCountryCode <> "" then return
+    if Left(value.Trim(), 1) = "+" then return
+
+    CleverTapLogError("Phone '" + value + "' carries no country code, and this device reports no country either. The server may not be able to use the number. Write it with a leading '+' and the country code: ""+14155550123""")
+end sub
+
 ' Longest values the server accepts.
 function CleverTapValidator() as object
     return {

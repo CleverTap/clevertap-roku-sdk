@@ -88,7 +88,7 @@ In the `nc` window you should see something like this:
 [CleverTap] items in queue: 1
 [CleverTap] sending to CleverTap: App Launched
 [CleverTap] payload is 842 bytes
-[CleverTap] POST https://eu1.clevertap-prod.com/a1?os=Roku&t=0.1.0&z=W8R-ZR9-Z96Z&ts=...
+[CleverTap] POST https://eu1.clevertap-prod.com/a1?os=Roku&t=100&z=W8R-ZR9-Z96Z&ts=...
 [CleverTap] payload [{"type":"meta",...}]
 [CleverTap] response status 200, body {"status":"success",...}
 ```
@@ -131,6 +131,40 @@ The id at the end of the status line on screen is how you tell these apart.
 The first row only behaves that way on a device where this channel has never identified
 anyone. The claim is recorded permanently, so after it that row takes the fourth path
 instead. Sideloading again does **not** reset this.
+
+### Dates
+
+**Push two dates of birth** sends a date the way an app has to send one. A date is written as
+a map with one key, `date`. The value is either an ISO 8601 date and time, or a count of
+seconds from 1 January 1970:
+
+```brightscript
+clevertap.callfunc("profilePush", [{ "DOB": { "date": "1990-04-17T00:00:00Z" } }])
+clevertap.callfunc("profilePush", [{ "DOB": { "date": 640310400 } }])
+```
+
+The SDK converts it. In the payload the value appears as `"DOB":"$D_640310400"` - the number
+of seconds from 1 January 1970, behind a prefix that marks the value as a date.
+
+An `roDateTime` cannot be used here. Every call reaches the SDK through `callfunc`, and an
+`roDateTime` does not survive that call. It arrives as nothing, and the attribute would be
+sent empty. A map does survive, which is why the date is written as one.
+
+An epoch number passed on its own is **not** treated as a date. The SDK cannot tell such a
+number apart from a score or a price, so it leaves it alone. Use the map.
+
+The row sends a second date, 3 March 1965, under the key `dobBefore1970`. It is written as a
+second count rather than as text, so both forms are shown in one press. Dates before 1970
+have a negative second count, and many real birth dates are in that range. Expect
+`"dobBefore1970":"$D_-152496000"`. Anything else there means this device cannot hold dates
+before 1970.
+
+A date the device cannot read is reported and left out of the request, rather than sent as
+1 January 1970:
+
+```
+[CleverTap] ERROR date for 'DOB' could not be read from '17 April 1990', so it was left out.
+```
 
 Problems are labelled:
 

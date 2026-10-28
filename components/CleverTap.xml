@@ -50,8 +50,10 @@
     <script type="text/brightscript" uri="pkg:/source/CleverTapMeta.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapQueue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapValue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapProfile.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapLogin.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapArp.brs" />
 </component>

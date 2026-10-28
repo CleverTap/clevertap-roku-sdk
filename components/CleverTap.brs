@@ -33,7 +33,12 @@ function init(config = invalid as dynamic) as void
         ' Everything durable is namespaced per account so two accounts never collide.
         m.storage = CleverTapStorage("clevertap_" + m.config.accountId)
         m.deviceId = CleverTapDeviceGetId(m.storage)
-        m.appFields = CleverTapDeviceAppFields(CreateObject("roDeviceInfo"), appInfo)
+        deviceInfo = CreateObject("roDeviceInfo")
+        m.appFields = CleverTapDeviceAppFields(deviceInfo, appInfo)
+        ' The country and the time zone are profile attributes, not app fields, so they are
+        ' read once here and sent by ctPushDeviceProfile below.
+        m.countryCode = CleverTapCountryCode(deviceInfo)
+        m.timeZone = CleverTapDeviceTimeZone(deviceInfo)
         m.session = CleverTapSession(m.storage)
         m.meta = CleverTapMeta(m.storage)
         m.queue = CleverTapQueue(m.storage)
@@ -45,6 +50,12 @@ function init(config = invalid as dynamic) as void
         m.identityCacheKey = "identityCache"
         m.identifiedKey = "identified"
         m.cachedRedirect = m.storage.read(m.redirectKey)
+        m.arpKey = "arp"
+        ' The block the server sent back last time, repeated in the header of every request.
+        m.arp = ctLoadArp()
+        ' The events the dashboard has switched off. Held for this run only; the server sends
+        ' the list again with every reply.
+        m.discardedEvents = []
         m.failureCount = 0
         m.muted = false
         m.inFlight = false
@@ -74,6 +85,7 @@ function init(config = invalid as dynamic) as void
         ' Fire App Launched for this launch (the mobile SDKs do the same on cold start), then
         ' send it alongside anything left over from a previous run (e.g. events queued offline).
         ctEnsureSession(ctNow())
+        ctPushDeviceProfile()
         ctScheduleFlush()
     end if
 end function
@@ -90,6 +102,13 @@ function recordEvent(args as object) as void
     check = CleverTapValidator().validateEventName(name)
     if not check.valid then
         CleverTapLogError("event rejected, " + check.message)
+        return
+    end if
+
+    ' The dashboard can switch an event off. The server then throws it away on arrival, so
+    ' there is no reason to queue it or to spend a request on it.
+    if CleverTapIsDiscardedEvent(check.value, m.discardedEvents) then
+        CleverTapLogDebug("event '" + check.value + "' is switched off in the dashboard, so it was not recorded")
         return
     end if
 
@@ -131,7 +150,7 @@ function profilePush(args as object) as void
 
     now = ctNow()
     ctEnsureSession(now)
-    m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), now))
+    m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), now, ctDeviceCountryCode()))
     CleverTapLogInfo("profile recorded, fields: " + fields.Count().ToStr())
     ctMaybeFlush()
 end function
@@ -160,6 +179,9 @@ function onUserLogin(args as object) as void
         CleverTapLogDebug("unsent items dropped for the previous user: " + m.queue.count().ToStr())
         m.queue.clear()
         m.session.reset()
+        ' What the server sent back was about the previous user, so it is not repeated under
+        ' the new id.
+        ctResetArp()
         m.deviceId = decision.deviceId
         CleverTapDeviceSetId(m.storage, decision.deviceId)
         CleverTapLogInfo("device id is now " + decision.deviceId)
@@ -178,7 +200,7 @@ function onUserLogin(args as object) as void
     ' order.
     now = ctNow()
     ctEnsureSession(now)
-    m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now))
+    m.queue.enqueueProfile(CleverTapBuildProfile(input, m.session.meta(), now, ctDeviceCountryCode()))
     CleverTapLogInfo("profile recorded, fields: " + input.Count().ToStr())
     ctMaybeFlush()
 end function
@@ -413,7 +435,9 @@ sub ctScheduleRetry()
     m.timer.control = "start"
 end sub
 
-sub ctOnFlushTimer(event as object)
+' Takes no argument on purpose. A field watcher may be declared without one, and the timer
+' carries nothing worth reading.
+sub ctOnFlushTimer()
     ctFlush()
 end sub
 
@@ -426,7 +450,7 @@ sub ctFlush()
     batch = m.queue.nextBatch(CleverTapConstants().MAX_BATCH_SIZE)
     batchItems = batch.items
     stamps = m.meta.stamps()
-    meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession())
+    meta = CleverTapBuildMetaHeader(m.config, m.deviceId, m.appFields, stamps.firstTs, stamps.lastTs, m.session.firstRequestInSession(), m.arp)
     payload = FormatJson(CleverTapBuildBatch(meta, batchItems))
     ' Kept so the line logged when the server replies can name the same items again.
     m.inFlightDescription = CleverTapDescribeBatch(batchItems)
@@ -475,6 +499,9 @@ sub ctOnUploadResult(event as object)
             CleverTapDeviceSetId(m.storage, result.serverGuid)
             CleverTapLogInfo("device id is now " + result.serverGuid)
         end if
+        ' After the device id is settled, because what the server sent back is held against
+        ' the id it replied about.
+        ctApplyArp(result.arp)
         m.failureCount = 0
         ' Record the upload time for the meta header (f_ts once, l_ts every time) and mark
         ' this session past its first request so later batches report frs = false.
@@ -511,3 +538,71 @@ end sub
 function ctNow() as integer
     return CreateObject("roDateTime").AsSeconds()
 end function
+
+' The country of this device, or "" when the device reports none.
+'
+' The app fields are the one place this is worked out. The key is left out of them when the
+' device does not know its country, so a missing key means "unknown" here too. The server
+' sees the same value, which is what the phone number check needs.
+function ctDeviceCountryCode() as string
+    return m.countryCode
+end function
+
+' Reads the saved block. Returns an empty map when none is held, so callers never check for
+' invalid.
+function ctLoadArp() as object
+    raw = m.storage.read(m.arpKey)
+    if raw = invalid or raw = "" then return {}
+
+    parsed = ParseJson(raw)
+    if parsed = invalid or GetInterface(parsed, "ifAssociativeArray") = invalid then
+        CleverTapLogDebug("the saved server block could not be read, so it is started again")
+        return {}
+    end if
+    return parsed
+end function
+
+' Takes in the block from a reply: holds the list of switched-off events for this run, then
+' saves the rest to repeat in later requests.
+sub ctApplyArp(arp as dynamic)
+    if arp = invalid then return
+
+    m.discardedEvents = CleverTapArpDiscardedEvents(arp)
+    if m.discardedEvents.Count() > 0 then
+        CleverTapLogDebug("the dashboard has switched off " + m.discardedEvents.Count().ToStr() + " event names, so they are no longer sent")
+    end if
+
+    m.arp = CleverTapMergeArp(m.arp, arp)
+    m.storage.write(m.arpKey, FormatJson(m.arp))
+end sub
+
+' Forgets the block. The values in it belong to one user, so a switch to another user starts
+' with none. The mobile SDKs hold a block per user; one key is held here instead, because the
+' registry is small and a key per user would never be given back.
+sub ctResetArp()
+    m.arp = {}
+    m.discardedEvents = []
+    m.storage.delete(m.arpKey)
+end sub
+
+' Sets the attributes the SDK reads off the device rather than from the app: the country and
+' the time zone.
+'
+' Both are sent as profile attributes, not inside the app fields block, because that is where
+' the server reads them from. The mobile SDKs put them in the same place.
+'
+' Either one is left out when the device does not report it. Nothing is sent when the device
+' reports neither.
+'
+' This runs once per launch, at the end of init. A viewer who changes one of these settings
+' is followed, because the new value is sent the next time the channel opens.
+sub ctPushDeviceProfile()
+    consts = CleverTapConstants()
+    fields = {}
+    if m.countryCode <> "" then fields[consts.COUNTRY_KEY] = m.countryCode
+    if m.timeZone <> "" then fields[consts.TIMEZONE_KEY] = m.timeZone
+    if fields.Count() = 0 then return
+
+    m.queue.enqueueProfile(CleverTapBuildProfile(fields, m.session.meta(), ctNow(), m.countryCode))
+    CleverTapLogDebug("device profile recorded, country '" + m.countryCode + "', time zone '" + m.timeZone + "'")
+end sub

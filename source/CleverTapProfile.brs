@@ -17,19 +17,34 @@ end function
 
 ' Builds the profile item. fields is the attribute map from the app; sessionMeta supplies
 ' s/pg/lsl/f; epochSeconds is when it was recorded. Custom keys that fail validation are
-' skipped (and logged); system keys are kept as given.
-function CleverTapBuildProfile(fields as object, sessionMeta as object, epochSeconds as integer) as object
+' skipped (and logged); system keys are kept as given. A value the server cannot store is
+' skipped as well, so it never replaces a value the server already holds.
+'
+' deviceCountryCode is the country of the device, or "" when the device reports none. It is
+' only read by the phone number check. It defaults to "", which is the stricter of the two
+' paths that check takes.
+function CleverTapBuildProfile(fields as object, sessionMeta as object, epochSeconds as integer, deviceCountryCode = "" as string) as object
     validator = CleverTapValidator()
+    consts = CleverTapConstants()
     profile = {}
 
     for each key in fields
-        CleverTapWarnMiscasedKey(key, CleverTapConstants().PROFILE_RESERVED_KEYS, "profile field")
-        if CleverTapIsSystemProfileKey(key) then
-            profile[key] = fields[key]
+        CleverTapWarnMiscasedKey(key, consts.PROFILE_RESERVED_KEYS, "profile field")
+        ' Any letter case is checked here. A key spelled "phone" is reported above and still
+        ' sent, so it still deserves the phone check.
+        if LCase(key) = LCase(consts.PHONE_KEY) then
+            CleverTapWarnPhoneNumber(fields[key], deviceCountryCode)
+        end if
+        value = CleverTapEncodeValue(key, fields[key])
+        if value = invalid then
+            ' Nothing to do. The value cannot be sent, and the reason for that was already
+            ' reported. Leaving the key out is what protects the stored value.
+        else if CleverTapIsSystemProfileKey(key) then
+            profile[key] = value
         else
             check = validator.validatePropertyKey(key)
             if check.valid then
-                profile[check.value] = fields[key]
+                profile[check.value] = value
             else
                 CleverTapLogError("profile key rejected, " + check.message)
             end if

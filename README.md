@@ -114,6 +114,81 @@ spelled in the wrong case:
 
 Quoting every key is the simple rule that avoids the whole problem.
 
+### Dates
+
+`DOB`, `Birthday` and any custom attribute can hold a date. Write the date as a map with one
+key, `date`. The value is either an ISO 8601 date and time, or a count of seconds from
+1 January 1970:
+
+```brightscript
+ct.callfunc("profilePush", [{ "DOB": { "date": "1990-04-17T00:00:00Z" } }])
+ct.callfunc("profilePush", [{ "DOB": { "date": 640310400 } }])
+```
+
+Both lines send the same thing. On the wire the value becomes `"$D_640310400"`: the number of
+seconds from 1 January 1970, behind a prefix that marks the value as a date.
+
+A date before 1 January 1970 is a negative second count, and that works the same way. 3 March
+1965 is sent as `"$D_-152496000"`.
+
+Write the ISO 8601 date with a `T` between the date and the time, as above. Roku also
+documents a form with a space in place of the `T`, but the device does not read it.
+
+An event property can be a date too:
+
+```brightscript
+ct.callfunc("recordEvent", ["Watched", { "airedOn": { "date": 640310400 } }])
+```
+
+**Why a map and not `roDateTime`.** BrightScript has a date object, `roDateTime`, but you
+cannot hand one to the SDK. Every call reaches the SDK through `callfunc`, and an
+`roDateTime` does not survive that call. It arrives as nothing. A map does survive, which is
+why the date is written as one.
+
+A map is safe to use as the marker. CleverTap stores an attribute as one value or as a list
+of values, so a map was never something you could send.
+
+A number on its own is **not** read as a date:
+
+```brightscript
+' Stored as the number 640310400, not as a date.
+ct.callfunc("profilePush", [{ "DOB": 640310400 }])
+```
+
+The SDK cannot tell a second count apart from a score or a price, so it leaves a plain number
+alone. Use the map whenever you mean a date.
+
+A date the device cannot read is left out of the request and reported. It is not sent as
+1 January 1970, and it does not replace a date CleverTap already holds:
+
+```
+[CleverTap] ERROR date for 'DOB' could not be read from '17 April 1990', so it was left out.
+Write the date as "1990-04-17T00:00:00Z", with a T between the date and the time.
+```
+
+### Phone numbers
+
+Write a phone number in quotes, with a leading `+` and its country code:
+
+```brightscript
+ct.callfunc("profilePush", [{ "Phone": "+14155550123" }])
+```
+
+A number without a `+` still works when the device reports a country, because CleverTap
+completes it from there. Some Roku accounts report no country, and then a number without a
+`+` cannot be completed. The SDK reports that case and sends the number anyway:
+
+```
+[CleverTap] ERROR Phone '4155550123' carries no country code, and this device reports no
+country either. The server may not be able to use the number.
+```
+
+Write the number as text. `{ "Phone": 14155550123 }` is a number, and a number cannot hold a
+leading `+` or a leading zero. The SDK reports that too.
+
+The SDK never changes or drops a phone number. Only your app knows what it meant, so both
+checks are reports.
+
 ### Profile commands
 
 `profilePush` replaces the value of a key. The calls below change one part of a value
