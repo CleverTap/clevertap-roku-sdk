@@ -14,6 +14,8 @@ end sub
 sub ctRunUpload()
     req = m.top.request
     config = req.config
+    ' Each SceneGraph thread has its own logger state, so the level is set again here.
+    CleverTapLogSetLevel(config.logLevel)
 
     resolved = CleverTapResolveDomain(config, req.cachedRedirect)
     domain = resolved.domain
@@ -21,6 +23,7 @@ sub ctRunUpload()
 
     ' No region/proxy/cached host: ask /hello where to send, then remember it.
     if resolved.needsHandshake then
+        CleverTapLogDebug("no server address known yet, asking " + CleverTapConstants().HANDSHAKE_URL)
         hello = ctHttpRequest("GET", CleverTapConstants().HANDSHAKE_URL, invalid, ctRequestHeaders(config))
         if hello.code = 200 then
             headers = CleverTapParseResponseHeaders(hello.headers)
@@ -29,13 +32,18 @@ sub ctRunUpload()
         end if
         ' Handshake did not give us a host: report failure so the caller retries later.
         if domain = invalid or domain = "" then
-            m.top.response = ctFailure(req.sentCount)
+            CleverTapLogError("handshake returned no server address, status " + hello.code.ToStr())
+            m.top.response = ctFailure()
             return
         end if
+        CleverTapLogDebug("handshake returned host " + domain)
     end if
 
     url = CleverTapBuildUploadUrl(domain, config.accountId, ctNowSeconds())
+    CleverTapLogDebug("POST " + url)
+    CleverTapLogDebug("payload " + req.payload)
     post = ctHttpRequest("POST", url, req.payload, ctRequestHeaders(config))
+    CleverTapLogDebug("response status " + post.code.ToStr() + ", body " + post.body)
 
     parsed = CleverTapParseResponseHeaders(post.headers)
     ' Prefer a redirect learned from the upload; fall back to the handshake's.
@@ -45,15 +53,19 @@ sub ctRunUpload()
     m.top.response = {
         success: (post.code = 200)
         statusCode: post.code
-        sentCount: req.sentCount
         redirectDomain: redirect
         spikyDomain: parsed.spikyDomain
         mute: parsed.mute
         serverGuid: CleverTapExtractServerGuid(post.body)
+        arp: CleverTapExtractArp(post.body)
     }
 end sub
 
-' One HTTP call. Returns { code, headers, body }; code is -1 on transport failure/timeout.
+' One HTTP call. Returns { code, headers, body }.
+'
+' code is the HTTP status when the server replied. It is a negative curl error number when
+' the request never got that far, for example -6 when the host name could not be turned into
+' an address. It is -1 when the request could not be started, or when it ran past 30 seconds.
 function ctHttpRequest(method as string, url as string, body as dynamic, headers as object) as object
     port = CreateObject("roMessagePort")
     transfer = CreateObject("roUrlTransfer")
@@ -71,14 +83,25 @@ function ctHttpRequest(method as string, url as string, body as dynamic, headers
     else
         started = transfer.AsyncGetToString()
     end if
-    if not started then return { code: -1, headers: {}, body: "" }
+    if not started then
+        CleverTapLogError("could not start the " + method + " request to " + url)
+        return { code: -1, headers: {}, body: "" }
+    end if
 
     msg = wait(30000, port)
     if type(msg) = "roUrlEvent" then
-        return { code: msg.GetResponseCode(), headers: msg.GetResponseHeaders(), body: msg.GetString() }
+        code = msg.GetResponseCode()
+        ' A code below zero is not an HTTP status. It is a curl error number, and the number
+        ' alone says nothing. For example -6 means the device could not turn the host name
+        ' into an address. The device can describe the error, so log that description.
+        if code < 0 then
+            CleverTapLogError(method + " to " + url + " failed: " + msg.GetFailureReason() + " (code " + code.ToStr() + ")")
+        end if
+        return { code: code, headers: msg.GetResponseHeaders(), body: msg.GetString() }
     end if
 
     ' Timed out; cancel and report a transport failure.
+    CleverTapLogError("the " + method + " request to " + url + " timed out after 30s")
     transfer.AsyncCancel()
     return { code: -1, headers: {}, body: "" }
 end function
@@ -92,15 +115,15 @@ function ctRequestHeaders(config as object) as object
     return headers
 end function
 
-function ctFailure(sentCount as integer) as object
+function ctFailure() as object
     return {
         success: false
         statusCode: -1
-        sentCount: sentCount
         redirectDomain: invalid
         spikyDomain: invalid
         mute: false
         serverGuid: invalid
+        arp: invalid
     }
 end function
 

@@ -15,6 +15,34 @@
         <!-- Identify a user and set their attributes. Arg: [profileFields with an identity
              field like Identity/Email/Phone]. -->
         <function name="onUserLogin" />
+
+        <!-- Profile commands. profilePush replaces the value of a key; these change part of
+             a value instead. Every one takes args as [key, value]. -->
+        <!-- Remove a property from the profile. Arg: [key]. -->
+        <function name="profileRemoveValueForKey" />
+        <!-- Replace the whole list of a multi-value property. Arg: [key, values]. -->
+        <function name="profileSetMultiValues" />
+        <!-- Put one value into a multi-value property. Arg: [key, value]. -->
+        <function name="profileAddMultiValue" />
+        <!-- Put several values into a multi-value property. Arg: [key, values]. -->
+        <function name="profileAddMultiValues" />
+        <!-- Take one value out of a multi-value property. Arg: [key, value]. -->
+        <function name="profileRemoveMultiValue" />
+        <!-- Take several values out of a multi-value property. Arg: [key, values]. -->
+        <function name="profileRemoveMultiValues" />
+        <!-- Raise a number property. Arg: [key, amount], amount above zero. -->
+        <function name="profileIncrementValueBy" />
+        <!-- Lower a number property. Arg: [key, amount], amount above zero. -->
+        <function name="profileDecrementValueBy" />
+
+        <!-- Privacy. -->
+        <!-- Stop or resume reporting for this viewer. Args: [optedOut] for a full stop, or
+             [optedOut, allowSystemEvents] to keep the SDK's own events flowing. -->
+        <function name="setOptOut" />
+        <!-- Turn reporting of network details on or off. Off unless asked for.
+             Arg: [enabled]. -->
+        <function name="enableDeviceNetworkInfoReporting" />
+
         <!-- Returns the current CleverTap device id (GUID) as a string, or "" if the SDK
              isn't configured yet. Takes no arguments. -->
         <function name="getCleverTapID" />
@@ -23,14 +51,22 @@
     <!-- SceneGraph components don't inherit pkg:/source automatically, so pull in the
          shared modules this node uses. -->
     <script type="text/brightscript" uri="pkg:/source/CleverTapConstants.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapLog.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapStorage.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapDevice.brs" />
+    <!-- CleverTapDevice turns the Roku time zone name into the standard one. That table lives
+         in CleverTapTimeZone. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapTimeZone.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapSession.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapMeta.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapQueue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapValidator.brs" />
+    <!-- Holds the viewer's opt-out choice and decides what may still be sent. -->
+    <script type="text/brightscript" uri="pkg:/source/CleverTapPrivacy.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapValue.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapProfile.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapLogin.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapRequest.brs" />
     <script type="text/brightscript" uri="pkg:/source/CleverTapNetwork.brs" />
+    <script type="text/brightscript" uri="pkg:/source/CleverTapArp.brs" />
 </component>

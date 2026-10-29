@@ -24,7 +24,7 @@ From the **repo root** (the folder that contains `source/`, `components/`, and `
 npm pack
 ```
 
-That creates a file like `clevertap-roku-sdk-0.1.0.tgz` in the repo root.
+That creates a file like `clevertap-roku-sdk-1.0.0.tgz` in the repo root.
 
 Now move into the sample and assemble it:
 
@@ -108,35 +108,18 @@ anonymous device id CleverTap shows on a "Not Identified" profile until you run 
 
 ## After you change code
 
-If you edit the SDK, rebuild it into the sample and redo the zip.
-
-First, from the repo root, repackage the SDK:
+Run this from the repo root instead of repeating steps 1 and 2:
 
 ```
-npm pack
+npm run sample:zip
 ```
 
-Then, inside `sample`, refresh the copy and rebuild. One catch: the SDK version number
-doesn't change between builds, so `npm install` on its own thinks nothing changed and quietly
-reuses the old SDK files. To force a fresh copy, delete the old ones first.
+It packs the SDK, reinstalls it into the sample, checks the sample really got your current
+code, and writes the zip. Then drag the new zip onto the simulator.
 
-macOS or Linux:
-
-```
-rm -rf node_modules/clevertap-roku-sdk source/roku_modules components/roku_modules
-npm install
-npx ropm install
-```
-
-Windows (PowerShell):
-
-```
-Remove-Item -Recurse -Force node_modules\clevertap-roku-sdk, source\roku_modules, components\roku_modules
-npm install
-npx ropm install
-```
-
-Then redo the zip in step 2 and drag the new zip onto the simulator.
-
-If you only edited the sample (not the SDK), you can skip the delete and `npm pack` steps -
-just redo the zip.
+Do not refresh the sample by hand. The SDK version number does not change between builds, so
+npm compares its lockfile against that version, decides nothing has changed, and skips the
+install. The sample then keeps running an old copy of the SDK, and nothing warns you: the zip
+builds and the channel boots. Deleting `node_modules/clevertap-roku-sdk` is not enough on its
+own, because `sample/package-lock.json` still records the old package and npm can restore it
+from its cache. `npm run sample:zip` removes both, every time, and then verifies the result.

@@ -30,4 +30,20 @@ function CleverTapValidatorTests(t as object)
     t.isTrue(pk.valid, "a normal property key is valid")
     t.eq(pk.value, "plan", "property key is trimmed")
     t.isFalse(v.validatePropertyKey("").valid, "empty property key is rejected")
+
+    ' --- keys spelled in the wrong letter case ---
+    '
+    ' The device lower-cases a key written without quotes in an associative array literal,
+    ' so { Amount: 300 } arrives as { amount: 300 }. The SDK cannot know what the app meant,
+    ' so it only reports the key and names the spelling the server wants.
+
+    consts = CleverTapConstants()
+    t.eq(CleverTapMiscasedKey("amount", consts.CHARGED_RESERVED_KEYS), "Amount", "a lower-cased reserved key reports the spelling the server wants")
+    t.eq(CleverTapMiscasedKey("AMOUNT", consts.CHARGED_RESERVED_KEYS), "Amount", "any wrong letter case is reported")
+    t.eq(CleverTapMiscasedKey("Amount", consts.CHARGED_RESERVED_KEYS), invalid, "the correct spelling is not reported")
+    t.eq(CleverTapMiscasedKey("discount", consts.CHARGED_RESERVED_KEYS), invalid, "a key that is not reserved is not reported")
+
+    t.eq(CleverTapMiscasedKey("email", consts.PROFILE_RESERVED_KEYS), "Email", "a lower-cased profile key is reported")
+    t.eq(CleverTapMiscasedKey("identity", consts.PROFILE_RESERVED_KEYS), "Identity", "Identity is reported even though it is not a system field")
+    t.eq(CleverTapMiscasedKey("favTeam", consts.PROFILE_RESERVED_KEYS), invalid, "a custom profile key is not reported")
 end function

@@ -14,16 +14,31 @@
 
 ' Finds the first identity field present in the input, in configured priority order. Returns
 ' { key, value } with value as a string, or invalid if none is set.
+'
+' An identity has to become a string, because it is the lookup key for the device id. A
+' number works. An array or an associative array does not. Such a value is skipped, and the
+' next identity field is tried. The app is told through the log.
 function CleverTapIdentityKeyValue(input as object) as dynamic
     if input = invalid then return invalid
 
     for each key in CleverTapConstants().IDENTITY_KEYS
         if input.DoesExist(key) then
             value = input[key]
-            if value <> invalid and value <> "" then
-                strValue = value
-                if GetInterface(value, "ifString") = invalid then strValue = value.ToStr()
-                return { key: key, value: strValue }
+            if value <> invalid then
+                ' The type is checked before the value is compared to "". Comparing an array
+                ' to a string raises a type mismatch and stops the channel.
+                strValue = invalid
+                if GetInterface(value, "ifString") <> invalid then
+                    strValue = value
+                else if GetInterface(value, "ifToStr") <> invalid then
+                    strValue = value.ToStr()
+                else
+                    CleverTapLogError("identity field '" + key + "' was ignored. An identity must be text or a number.")
+                end if
+
+                if strValue <> invalid and strValue <> "" then
+                    return { key: key, value: strValue }
+                end if
             end if
         end if
     end for
