@@ -10,13 +10,19 @@
 ' reach them at half past two in the afternoon.
 '
 ' 94 of the 151 names have this problem. The other 57 names happen to match an old standard
-' name, so they already work. The table below covers every name on Roku's list. It is used for
-' all of them, not only the broken ones. A name must not depend on luck.
+' name, so they already work. The table below holds 150 of the 151. It is used for all 150,
+' not only the broken ones. A name must not depend on luck.
+'
+' One name is left out. Roku lists "Africa/WT". Roku gives no description for it. No standard
+' name matches it. Roku's list also holds "Africa/WAT", "Africa/WET" and "Africa/WST". Any of
+' those three could be the name "Africa/WT" was meant to be. The SDK cannot tell them apart.
+' It sends no time zone for "Africa/WT". A missing time zone is safer than a wrong one.
 '
 ' The list of names on the left comes from Roku's own documentation for GetTimeZone(). Every
 ' standard name on the right was checked against the time zone database.
 
-' The standard name for a Roku time zone name. Returns "" when the name is not on Roku's list.
+' The standard name for a Roku time zone name. Returns "" when the table does not hold the
+' name. "Africa/WT" is on Roku's list and still returns "". See the note above.
 '
 ' An unknown name gives "" on purpose. The SDK then sends no time zone at all. A missing time
 ' zone falls back to the account time zone, which is close to right for most viewers. A wrong

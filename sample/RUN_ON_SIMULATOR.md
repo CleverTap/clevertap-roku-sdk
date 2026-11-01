@@ -85,8 +85,8 @@ up if DevTools is already open when the app loads, and engine exceptions appear 
 SDK stays quiet on the normal path, so a successful call may print nothing.
 
 **Network tab (the actual upload).** About a second after you fire a call, the SDK uploads
-over HTTP. Open **DevTools -> Network** and look for a POST to your region host (with
-`clevertap_region=in1` in the manifest, that's `in1.<clevertap-domain>`). That request is
+over HTTP. Open **DevTools -> Network** and look for a POST to your region host. The sample
+ships with `clevertap_region=eu1`, so that is `eu1.clevertap-prod.com`. That request is
 carrying your events.
 
 **Application -> Local Storage (device id / GUID and the queue).** The SDK keeps its durable
@@ -94,17 +94,19 @@ state in the Roku registry, which the simulator stores in the browser's Local St
 **DevTools -> Application -> Local Storage** and pick the simulator's entry. The SDK's registry
 section is named `clevertap_<your account id>` and the device GUID is stored under the key
 `deviceId`, so search the entries for `deviceId` or `clevertap` to find it. That value is the
-anonymous device id CleverTap shows on a "Not Identified" profile until you run Login user.
+anonymous device id CleverTap shows on a "Not Identified" profile until you fire one of the
+login rows.
 
 ## Good to know
 
 - **The menu may look rough.** SceneGraph support in the simulator is still beta, so the UI
   might not render perfectly. Booting and the console output are the reliable parts.
-- **Events do reach your CleverTap dashboard from the browser.** CleverTap's endpoint accepts
-  the cross-origin request, so the upload goes through from the simulator - events and their
-  properties show up in the dashboard, attached to the anonymous device profile until you fire
-  Login user to identify it. For a fully device-accurate run you can still sideload to a real
-  Roku (see [README.md](README.md)), but it isn't required just to confirm events land.
+- **Check the upload rather than assuming it went out.** The simulator is a web page, so the
+  browser applies cross-origin rules to the request that a Roku device does not. Watch the
+  **Network** tab for the POST and read its status. Anything that arrives is attached to the
+  anonymous device profile until you fire one of the login rows to identify it. A real device
+  is the only setup that settles what the SDK sends, so sideload it
+  (see [RUN_ON_DEVICE.md](RUN_ON_DEVICE.md)) before you trust a result from here.
 
 ## After you change code
 

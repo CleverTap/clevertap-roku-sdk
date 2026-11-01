@@ -41,10 +41,34 @@ you can match a session to its profile in the dashboard.
 
 ## Installation
 
-The SDK is a set of BrightScript source files and SceneGraph components. Add it to your
-channel by copying this repo's `source/` and `components/` folders into your channel's own
-`source/` and `components/` folders. That registers the `CleverTap` node and its background
-upload task.
+The SDK is a set of BrightScript source files and SceneGraph components. Install it with
+[ropm](https://github.com/rokucommunity/ropm), the package manager for Roku channels:
+
+```bash
+npm install ropm --save-dev
+npx ropm install clevertap-roku-sdk
+```
+
+ropm copies the SDK into `source/roku_modules/clevertaprokusdk/` and
+`components/roku_modules/clevertaprokusdk/` in your channel. Commit those folders or re-run
+`npx ropm install` in your build, whichever your team prefers.
+
+### The node is named with a prefix
+
+ropm gives every package its own prefix so that two packages cannot register the same
+component name. The prefix is the package name with the hyphens taken out, so the SDK node is
+**`clevertaprokusdk_CleverTap`**, not `CleverTap`.
+
+The prefix applies to the node name only. Every call you make on the node keeps its plain
+name, so `callfunc("init", ...)` and all the calls further down this page are written exactly
+as they appear here.
+
+### Installing by hand instead
+
+ropm is the supported route and the one the sample uses. If you cannot add a build step, copy
+this repo's `source/` and `components/` folders into your channel's own `source/` and
+`components/` folders. Nothing renames anything on this route, so the node is plain
+`CleverTap`. Every other line on this page is the same.
 
 ## Integration
 
@@ -53,7 +77,7 @@ Create the SDK node once, keep it somewhere every component can reach, for examp
 
 ```brightscript
 ' In your main scene's init():
-ct = CreateObject("roSGNode", "CleverTap")
+ct = CreateObject("roSGNode", "clevertaprokusdk_CleverTap")
 m.global.addFields({ clevertap: ct })
 
 ' Pass your credentials directly...
@@ -136,8 +160,8 @@ seconds from 1 January 1970, behind a prefix that marks the value as a date.
 A date before 1 January 1970 is a negative second count, and that works the same way. 3 March
 1965 is sent as `"$D_-152496000"`.
 
-Write the ISO 8601 date with a `T` between the date and the time, as above. Roku also
-documents a form with a space in place of the `T`, but the device does not read it.
+Write the ISO 8601 date with a `T` between the date and the time, as above. A date the
+device cannot read is reported and left out, so check the console if a date does not arrive.
 
 An event property can be a date too:
 
@@ -164,32 +188,7 @@ rather than becoming a date. The SDK says so:
 anything nested inside it was left out. A date written this deep is not converted.
 ```
 
-**Nesting has to be switched on for your account.** The SDK sends a nested value as written,
-but CleverTap only stores it once the feature is enabled. Event properties and profile
-attributes are switched on separately, so ask the CleverTap team for both if you need both.
-Until then the request still succeeds, the console still shows the nested payload going out,
-and the value is dropped on arrival. Nothing is logged at either end, so the only sign is
-that the data never reaches the dashboard.
-
-Once it is on, CleverTap flattens what you send. It does not keep the nesting. Each value
-inside becomes its own property, named by the path it sat at, and the map itself is not a
-property you can report on. The event above arrives as three properties:
-
-```
-show.title     Final over
-show.airedOn   17/04/1990
-show.teams     IND, AUS
-```
-
-A list adds its position to the name, so `teams[0].city` is what a map inside a list is
-called. Build your dashboard reports against those names.
-
-Two things this does not cover. A purchase is left out: CleverTap does not flatten anything
-inside a `Charged` event, so keep the line items of a purchase flat and put nested data on
-an event of your own. A date is not affected either way, because it stops being a map before
-it leaves the device - it travels as plain text and lands as a date wherever you wrote it.
-
-The limit is also what keeps a mistake cheap. A map can be made to hold itself:
+The three-level limit is also what keeps a mistake cheap. A map can be made to hold itself:
 
 ```brightscript
 show = {}
@@ -225,6 +224,50 @@ A date the device cannot read is left out of the request and reported. It is not
 [CleverTap] ERROR date for 'DOB' could not be read from '17 April 1990', so it was left out.
 Write the date as "1990-04-17T00:00:00Z", with a T between the date and the time.
 ```
+
+### Nested properties
+
+A property can hold a map or a list, not just a single value. The SDK sends the whole thing:
+
+```brightscript
+ct.callfunc("recordEvent", ["Product viewed", {
+    "id": 42
+    "show": {
+        "title": "Final over"
+        "airedOn": { "date": 640310400 }
+        "teams": ["IND", "AUS"]
+    }
+}])
+```
+
+**Nesting has to be switched on for your account.** The SDK sends a nested value as written,
+but CleverTap only stores it once the feature is enabled. Event properties and profile
+attributes are switched on separately, so ask the CleverTap team for both if you need both.
+Until then the request still succeeds, the console still shows the nested payload going out,
+and the value is dropped on arrival. Nothing is logged at either end, so the only sign is
+that the data never reaches the dashboard.
+
+Once it is on, CleverTap flattens what you send. It does not keep the nesting. Each value
+inside becomes its own property, named by the path it sat at, and the map itself is not a
+property you can report on. The `show` map above arrives as three properties, next to the
+flat `id`:
+
+```
+show.title     Final over
+show.airedOn   17/04/1990
+show.teams     IND, AUS
+```
+
+A list adds its position to the name, so `teams[0].city` is what a map inside a list is
+called. Build your dashboard reports against those names.
+
+Two things this does not cover. A purchase is left out: CleverTap does not flatten anything
+inside a `Charged` event, so keep the line items of a purchase flat and put nested data on
+an event of your own. A date is not affected either way, because it stops being a map before
+it leaves the device - it travels as plain text and lands as a date wherever you wrote it.
+
+The nesting limit is the same three levels the date search uses, counting maps and lists the
+same way.
 
 ### Phone numbers
 
