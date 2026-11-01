@@ -81,14 +81,14 @@ The channel launches on the device.
 In the `nc` window you should see something like this:
 
 ```
-[CleverTap] initialized, account W8R-ZR9-Z96Z, sdk 1.0.0
+[CleverTap] initialized, account TEST-123-4567, sdk 1.0.0
 [CleverTap] device id 5e1f7c90-...
 [CleverTap] new session 1760871234
 [CleverTap] event recorded: App Launched
 [CleverTap] items in queue: 1
 [CleverTap] sending to CleverTap: App Launched
 [CleverTap] payload is 842 bytes
-[CleverTap] POST https://eu1.clevertap-prod.com/a1?os=Roku&t=10000&z=W8R-ZR9-Z96Z&ts=...
+[CleverTap] POST https://eu1.clevertap-prod.com/a1?os=Roku&t=10000&z=TEST-123-4567&ts=...
 [CleverTap] payload [{"type":"meta",...}]
 [CleverTap] response status 200, body {"status":"success",...}
 ```

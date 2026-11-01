@@ -85,9 +85,9 @@ up if DevTools is already open when the app loads, and engine exceptions appear 
 SDK stays quiet on the normal path, so a successful call may print nothing.
 
 **Network tab (the actual upload).** About a second after you fire a call, the SDK uploads
-over HTTP. Open **DevTools -> Network** and look for a POST to your region host. The sample
-ships with `clevertap_region=eu1`, so that is `eu1.clevertap-prod.com`. That request is
-carrying your events.
+over HTTP. Open **DevTools -> Network** and look for a POST to your region host. The host is
+built from the region you put in the manifest, so `clevertap_region=eu1` sends to
+`eu1.clevertap-prod.com`. That request is carrying your events.
 
 **Application -> Local Storage (device id / GUID and the queue).** The SDK keeps its durable
 state in the Roku registry, which the simulator stores in the browser's Local Storage. Open

@@ -3,8 +3,8 @@
 function CleverTapArpTests(t as object)
     ' --- reading it out of a reply ---
 
-    body = "{""arp"":{""id"":""W8R-ZR9-Z96Z"",""dh"":0,""v"":2},""g"":""guid-1""}"
-    t.eq(CleverTapExtractArp(body), { "id": "W8R-ZR9-Z96Z", "dh": 0, "v": 2 }, "the block is read out of a reply")
+    body = "{""arp"":{""id"":""TEST-123-4567"",""dh"":0,""v"":2},""g"":""guid-1""}"
+    t.eq(CleverTapExtractArp(body), { "id": "TEST-123-4567", "dh": 0, "v": 2 }, "the block is read out of a reply")
 
     t.eq(CleverTapExtractArp("{""g"":""guid-1""}"), invalid, "a reply without the block gives nothing")
     t.eq(CleverTapExtractArp("not json"), invalid, "a reply that is not JSON gives nothing")
