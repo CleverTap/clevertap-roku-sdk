@@ -114,10 +114,6 @@ to a feature branch does not trigger them, so open the pull request to get a CI 
 The SDK publishes to npm. ropm has no registry of its own, so `ropm install
 clevertap-roku-sdk` installs the npm package and renames what it copies into a channel.
 
-The checklist is on Confluence, not in this repo: the three separate places the version
-number lives, what to check on a real device before tagging, and the publish steps.
-TODO(verify): link the Confluence page here.
-
 One part of that is worth knowing outside a release, because it breaks the build. The version
 number in `package.json` is also written into `sample/package.json`, which depends on
 `file:../clevertap-roku-sdk-<version>.tgz`. Change one without the other and
