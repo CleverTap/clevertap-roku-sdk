@@ -41,10 +41,49 @@ you can match a session to its profile in the dashboard.
 
 ## Installation
 
-The SDK is a set of BrightScript source files and SceneGraph components. Add it to your
-channel by copying this repo's `source/` and `components/` folders into your channel's own
-`source/` and `components/` folders. That registers the `CleverTap` node and its background
-upload task.
+The SDK is a set of BrightScript source files and SceneGraph components. Install it with
+[ropm](https://github.com/rokucommunity/ropm), the package manager for Roku channels.
+
+Run both commands from your channel's root - the folder that holds `manifest`. ropm works
+from the current directory, so running it a level up writes the SDK somewhere your channel
+cannot see it.
+
+```bash
+npm install ropm --save-dev
+npx ropm install clevertap-roku-sdk
+```
+
+ropm copies the SDK into `source/roku_modules/clevertaprokusdk/` and
+`components/roku_modules/clevertaprokusdk/` in your channel. Commit those folders or re-run
+`npx ropm install` in your build, whichever your team prefers.
+
+Check that it landed:
+
+```bash
+ls source/roku_modules/clevertaprokusdk
+```
+
+Worth doing, because `ropm install` exits 0 even when it installed nothing. A build step that
+only looks at the exit code will carry on and produce a channel with no SDK in it, and the
+first sign of trouble is the node failing to create at runtime. The last line of ropm's own
+output is the other tell: `ropm: Installed 1 module` rather than `ropm: No modules installed`.
+
+### The node is named with a prefix
+
+ropm gives every package its own prefix so that two packages cannot register the same
+component name. The prefix is the package name with the hyphens taken out, so the SDK node is
+**`clevertaprokusdk_CleverTap`**, not `CleverTap`.
+
+The prefix applies to the node name only. Every call you make on the node keeps its plain
+name, so `callfunc("init", ...)` and all the calls further down this page are written exactly
+as they appear here.
+
+### Installing by hand instead
+
+ropm is the supported route and the one the sample uses. If you cannot add a build step, copy
+this repo's `source/` and `components/` folders into your channel's own `source/` and
+`components/` folders. Nothing renames anything on this route, so the node is plain
+`CleverTap`. Every other line on this page is the same.
 
 ## Integration
 
@@ -53,7 +92,7 @@ Create the SDK node once, keep it somewhere every component can reach, for examp
 
 ```brightscript
 ' In your main scene's init():
-ct = CreateObject("roSGNode", "CleverTap")
+ct = CreateObject("roSGNode", "clevertaprokusdk_CleverTap")
 m.global.addFields({ clevertap: ct })
 
 ' Pass your credentials directly...
@@ -73,6 +112,39 @@ and call `init` with an empty object:
 ```brightscript
 ct.callfunc("init", {})
 ```
+
+## Putting the channel on a device
+
+Nothing about this is specific to the SDK, but you need it to see any of the above work.
+
+A Roku channel is a zip with `manifest` at the top level. Build it from **inside** your
+channel's root, or the manifest ends up in a subfolder and the device rejects the zip:
+
+```bash
+zip -r ../my-channel.zip manifest source components
+```
+
+Put the device in developer mode, then open `http://<roku-ip>` in a browser and upload the
+zip. The remote sequence that enables developer mode, and how to find the device's IP, are
+in [`sample/RUN_ON_DEVICE.md`](sample/RUN_ON_DEVICE.md) - steps 1 and 2 there apply to any
+channel, not only the sample.
+
+To watch what the SDK is doing, connect to the debug console before you sideload:
+
+```bash
+nc <roku-ip> 8085
+```
+
+With `clevertap_log_level=debug` in your manifest you should see the SDK start up:
+
+```
+[CleverTap] initialized, account TEST-123-4567, sdk 1.0.0
+[CleverTap] event recorded: App Launched
+[CleverTap] response status 200, body {"status":"success",...}
+```
+
+No `[CleverTap]` lines at all usually means the account id or token is missing, which the SDK
+reports once and then stays inactive.
 
 ## Usage
 
@@ -96,6 +168,38 @@ ct.callfunc("recordChargedEvent", [{ "Amount": 300 }, [{ "id": 1 }, { "id": 2 }]
 ' Get the current CleverTap device id (the CleverTap ID)
 ctId = ct.callfunc("getCleverTapID", invalid)
 ```
+
+### `init` takes a map, every other call takes a list
+
+These two lines look inconsistent, and the difference is easy to miss:
+
+```brightscript
+ct.callfunc("init", { accountId: "...", token: "..." })   ' a map, passed as it is
+ct.callfunc("recordEvent", ["Product viewed", { "id": 42 }])   ' a list of arguments
+```
+
+`init` is handed your config map directly. Every other call is handed a **list holding its
+arguments in order**, which the SDK unpacks.
+
+A call that takes one argument still takes a list of one. `profilePush` wants
+`[profileFields]`, not `profileFields`:
+
+```brightscript
+ct.callfunc("profilePush", [{ "Name": "Sam" }])    ' right
+ct.callfunc("profilePush", { "Name": "Sam" })      ' wrong
+```
+
+A call that takes nothing is passed `invalid`, as `getCleverTapID` is above.
+
+Nothing stops you at build time, because `callfunc` names and arguments are not checked until
+the line runs. Passing a map where a list belongs fails there instead, with this error:
+
+```
+Associative array indexes must be strings
+```
+
+The SDK reads the first argument as `args[0]`, and a map cannot be read that way. The call
+never happens, so the event or the profile change is simply never recorded.
 
 ### Always write property keys in quotes
 
@@ -136,8 +240,8 @@ seconds from 1 January 1970, behind a prefix that marks the value as a date.
 A date before 1 January 1970 is a negative second count, and that works the same way. 3 March
 1965 is sent as `"$D_-152496000"`.
 
-Write the ISO 8601 date with a `T` between the date and the time, as above. Roku also
-documents a form with a space in place of the `T`, but the device does not read it.
+Write the ISO 8601 date with a `T` between the date and the time, as above. A date the
+device cannot read is reported and left out, so check the console if a date does not arrive.
 
 An event property can be a date too:
 
@@ -164,32 +268,7 @@ rather than becoming a date. The SDK says so:
 anything nested inside it was left out. A date written this deep is not converted.
 ```
 
-**Nesting has to be switched on for your account.** The SDK sends a nested value as written,
-but CleverTap only stores it once the feature is enabled. Event properties and profile
-attributes are switched on separately, so ask the CleverTap team for both if you need both.
-Until then the request still succeeds, the console still shows the nested payload going out,
-and the value is dropped on arrival. Nothing is logged at either end, so the only sign is
-that the data never reaches the dashboard.
-
-Once it is on, CleverTap flattens what you send. It does not keep the nesting. Each value
-inside becomes its own property, named by the path it sat at, and the map itself is not a
-property you can report on. The event above arrives as three properties:
-
-```
-show.title     Final over
-show.airedOn   17/04/1990
-show.teams     IND, AUS
-```
-
-A list adds its position to the name, so `teams[0].city` is what a map inside a list is
-called. Build your dashboard reports against those names.
-
-Two things this does not cover. A purchase is left out: CleverTap does not flatten anything
-inside a `Charged` event, so keep the line items of a purchase flat and put nested data on
-an event of your own. A date is not affected either way, because it stops being a map before
-it leaves the device - it travels as plain text and lands as a date wherever you wrote it.
-
-The limit is also what keeps a mistake cheap. A map can be made to hold itself:
+The three-level limit is also what keeps a mistake cheap. A map can be made to hold itself:
 
 ```brightscript
 show = {}
@@ -225,6 +304,50 @@ A date the device cannot read is left out of the request and reported. It is not
 [CleverTap] ERROR date for 'DOB' could not be read from '17 April 1990', so it was left out.
 Write the date as "1990-04-17T00:00:00Z", with a T between the date and the time.
 ```
+
+### Nested properties
+
+A property can hold a map or a list, not just a single value. The SDK sends the whole thing:
+
+```brightscript
+ct.callfunc("recordEvent", ["Product viewed", {
+    "id": 42
+    "show": {
+        "title": "Final over"
+        "airedOn": { "date": 640310400 }
+        "teams": ["IND", "AUS"]
+    }
+}])
+```
+
+**Nesting has to be switched on for your account.** The SDK sends a nested value as written,
+but CleverTap only stores it once the feature is enabled. Event properties and profile
+attributes are switched on separately, so ask the CleverTap team for both if you need both.
+Until then the request still succeeds, the console still shows the nested payload going out,
+and the value is dropped on arrival. Nothing is logged at either end, so the only sign is
+that the data never reaches the dashboard.
+
+Once it is on, CleverTap flattens what you send. It does not keep the nesting. Each value
+inside becomes its own property, named by the path it sat at, and the map itself is not a
+property you can report on. The `show` map above arrives as three properties, next to the
+flat `id`:
+
+```
+show.title     Final over
+show.airedOn   17/04/1990
+show.teams     IND, AUS
+```
+
+A list adds its position to the name, so `teams[0].city` is what a map inside a list is
+called. Build your dashboard reports against those names.
+
+Two things this does not cover. A purchase is left out: CleverTap does not flatten anything
+inside a `Charged` event, so keep the line items of a purchase flat and put nested data on
+an event of your own. A date is not affected either way, because it stops being a map before
+it leaves the device - it travels as plain text and lands as a date wherever you wrote it.
+
+The nesting limit is the same three levels the date search uses, counting maps and lists the
+same way.
 
 ### Phone numbers
 
