@@ -107,6 +107,16 @@ login rows.
   anonymous device profile until you fire one of the login rows to identify it. A real device
   is the only setup that settles what the SDK sends, so sideload it
   (see [RUN_ON_DEVICE.md](RUN_ON_DEVICE.md)) before you trust a result from here.
+- **Time zones cannot be tested here.** Roku uses its own time zone names, such as
+  `Asia/India`. The simulator reports the browser's name instead, such as `Asia/Kolkata`.
+  The SDK does not recognise that name, so it logs a line like this and sends no time zone:
+
+  ```
+  [CleverTap] ERROR the device reports time zone 'Asia/Kolkata', which this SDK does not know.
+  ```
+
+  This is expected in the simulator. A real device reports a Roku name, so the line does not
+  appear there.
 
 ## After you change code
 

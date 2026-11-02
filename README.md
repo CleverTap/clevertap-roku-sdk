@@ -42,7 +42,11 @@ you can match a session to its profile in the dashboard.
 ## Installation
 
 The SDK is a set of BrightScript source files and SceneGraph components. Install it with
-[ropm](https://github.com/rokucommunity/ropm), the package manager for Roku channels:
+[ropm](https://github.com/rokucommunity/ropm), the package manager for Roku channels.
+
+Run both commands from your channel's root - the folder that holds `manifest`. ropm works
+from the current directory, so running it a level up writes the SDK somewhere your channel
+cannot see it.
 
 ```bash
 npm install ropm --save-dev
@@ -52,6 +56,17 @@ npx ropm install clevertap-roku-sdk
 ropm copies the SDK into `source/roku_modules/clevertaprokusdk/` and
 `components/roku_modules/clevertaprokusdk/` in your channel. Commit those folders or re-run
 `npx ropm install` in your build, whichever your team prefers.
+
+Check that it landed:
+
+```bash
+ls source/roku_modules/clevertaprokusdk
+```
+
+Worth doing, because `ropm install` exits 0 even when it installed nothing. A build step that
+only looks at the exit code will carry on and produce a channel with no SDK in it, and the
+first sign of trouble is the node failing to create at runtime. The last line of ropm's own
+output is the other tell: `ropm: Installed 1 module` rather than `ropm: No modules installed`.
 
 ### The node is named with a prefix
 
@@ -98,6 +113,39 @@ and call `init` with an empty object:
 ct.callfunc("init", {})
 ```
 
+## Putting the channel on a device
+
+Nothing about this is specific to the SDK, but you need it to see any of the above work.
+
+A Roku channel is a zip with `manifest` at the top level. Build it from **inside** your
+channel's root, or the manifest ends up in a subfolder and the device rejects the zip:
+
+```bash
+zip -r ../my-channel.zip manifest source components
+```
+
+Put the device in developer mode, then open `http://<roku-ip>` in a browser and upload the
+zip. The remote sequence that enables developer mode, and how to find the device's IP, are
+in [`sample/RUN_ON_DEVICE.md`](sample/RUN_ON_DEVICE.md) - steps 1 and 2 there apply to any
+channel, not only the sample.
+
+To watch what the SDK is doing, connect to the debug console before you sideload:
+
+```bash
+nc <roku-ip> 8085
+```
+
+With `clevertap_log_level=debug` in your manifest you should see the SDK start up:
+
+```
+[CleverTap] initialized, account TEST-123-4567, sdk 1.0.0
+[CleverTap] event recorded: App Launched
+[CleverTap] response status 200, body {"status":"success",...}
+```
+
+No `[CleverTap]` lines at all usually means the account id or token is missing, which the SDK
+reports once and then stays inactive.
+
 ## Usage
 
 Once initialized, call the SDK from anywhere on the render thread through the node you stored:
@@ -120,6 +168,38 @@ ct.callfunc("recordChargedEvent", [{ "Amount": 300 }, [{ "id": 1 }, { "id": 2 }]
 ' Get the current CleverTap device id (the CleverTap ID)
 ctId = ct.callfunc("getCleverTapID", invalid)
 ```
+
+### `init` takes a map, every other call takes a list
+
+These two lines look inconsistent, and the difference is easy to miss:
+
+```brightscript
+ct.callfunc("init", { accountId: "...", token: "..." })   ' a map, passed as it is
+ct.callfunc("recordEvent", ["Product viewed", { "id": 42 }])   ' a list of arguments
+```
+
+`init` is handed your config map directly. Every other call is handed a **list holding its
+arguments in order**, which the SDK unpacks.
+
+A call that takes one argument still takes a list of one. `profilePush` wants
+`[profileFields]`, not `profileFields`:
+
+```brightscript
+ct.callfunc("profilePush", [{ "Name": "Sam" }])    ' right
+ct.callfunc("profilePush", { "Name": "Sam" })      ' wrong
+```
+
+A call that takes nothing is passed `invalid`, as `getCleverTapID` is above.
+
+Nothing stops you at build time, because `callfunc` names and arguments are not checked until
+the line runs. Passing a map where a list belongs fails there instead, with this error:
+
+```
+Associative array indexes must be strings
+```
+
+The SDK reads the first argument as `args[0]`, and a map cannot be read that way. The call
+never happens, so the event or the profile change is simply never recorded.
 
 ### Always write property keys in quotes
 

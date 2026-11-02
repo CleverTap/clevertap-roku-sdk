@@ -50,14 +50,24 @@ sub ctRunUpload()
     redirect = parsed.redirectDomain
     if redirect = invalid then redirect = redirectFromHandshake
 
+    ' Only a 200 has a JSON body. A failure body is plain text, and reading it as JSON
+    ' prints a parse error to the debug console. The parse error looks like a bug in the
+    ' SDK, so do not parse a body we already know is not JSON.
+    serverGuid = invalid
+    arp = invalid
+    if post.code = 200 then
+        serverGuid = CleverTapExtractServerGuid(post.body)
+        arp = CleverTapExtractArp(post.body)
+    end if
+
     m.top.response = {
         success: (post.code = 200)
         statusCode: post.code
         redirectDomain: redirect
         spikyDomain: parsed.spikyDomain
         mute: parsed.mute
-        serverGuid: CleverTapExtractServerGuid(post.body)
-        arp: CleverTapExtractArp(post.body)
+        serverGuid: serverGuid
+        arp: arp
     }
 end sub
 
