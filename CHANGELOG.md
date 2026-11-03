@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
-### Version 1.0.0 (November 2, 2026)
+### Version 1.0.0 (November 3, 2026)
 #### Added
 - **Initial Release:** The CleverTap Roku SDK provides analytics for Roku channels written in BrightScript and SceneGraph. The SDK is a SceneGraph node named `CleverTap`, and every call is made on it through `callfunc`.
     * `init(config)` configures the SDK and must be called once before anything else. `config` carries `accountId`, `token` and `region`, and optionally `proxyDomain` and `logLevel`. Pass an empty object to take all of them from the channel manifest.

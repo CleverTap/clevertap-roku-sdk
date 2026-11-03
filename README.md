@@ -104,7 +104,7 @@ Or, instead of passing credentials in code, add them to your channel `manifest`:
 ```
 clevertap_account_id=YOUR_ACCOUNT_ID
 clevertap_token=YOUR_TOKEN
-clevertap_region=in1
+clevertap_region=YOUR_REGION
 ```
 
 and call `init` with an empty object:
